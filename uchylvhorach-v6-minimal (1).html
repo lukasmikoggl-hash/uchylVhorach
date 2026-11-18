@@ -1,0 +1,2748 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>uchýlVhorách — plánovač viacdňových túr</title>
+<!--
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  uchýlVhorách — MVP prototyp (v5)                                ║
+  ║  Jeden samostatný súbor: inline CSS + JS, bez externých knižníc. ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  KDE ČO NÁJDEŠ V TOMTO SÚBORE
+    1) DIZAJN  → blok STYLE, úplne hore ":root" (farby, pozadie, písmo, zaoblenie, tiene).
+                  Zmenou tam sa zmení celý web vrátane ilustrácií.
+    2) OBSAH   → &lt;script id="data"&gt; (hľadaj „DÁTA“): chaty, útulne, trasy, pohoria.
+                  Pridanie chaty = skopíruj šablónu, vyplň, ulož. Nič iné netreba meniť.
+    3) LOGIKA  → posledný &lt;script&gt;: správanie stránky. Bežne ho netreba upravovať.
+
+  STRÁNKY: Domov · Kde spať · Trasy · Mapa · Moje trasy · Počasie a príprava ·
+           Zážitky · Pridať chatu · O projekte
+
+  FOTKY: ilustrácie sú ukážka. Reálne fotky pridáš do poľa „fotky“ pri chate.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet">
+<style>
+/* ╔════════════════════════════════════════════════════════════════╗
+   ║  1) DIZAJN — tu meň vzhľad celého webu                          ║
+   ╚════════════════════════════════════════════════════════════════╝
+   Téma „noc v horách“: tmavé pozadie, svetlo lampáša ako akcent,
+   filmové ilustrácie a veľké zúžené písmo. */
+:root{
+  /* — Pôvodný, jasný a čitateľný horský vzhľad — */
+  --bg:         #f3eee5;   /* svetlé, teplé pozadie stránky */
+  --surface:    rgba(255,255,255,.78); /* karty a panely — svetlé sklo */
+  --surface-2:  rgba(22,35,28,.05);   /* zvýraznené plochy */
+  --solid:      #f7f2ea;   /* nepriehľadné plochy: okná, rozbaľovacie zoznamy */
+  --glass-line: rgba(28,38,31,.12);  /* okraj skla */
+  --sand:       rgba(32,48,39,.06);  /* štítky */
+  --ink:        #1d2a24;   /* hlavný text */
+  --ink-soft:   rgba(29,42,36,.72);  /* vedľajší text */
+  --on-light:   #f8f4ee;   /* text na svetlých plochách */
+  --brand:      #3d6d4d;   /* akcent zelená: tlačidlá */
+  --brand-dark: #2f5640;   /* tlačidlá pri prejdení myšou */
+  --glow:       #d89044;   /* teplé slnko / akcent */
+  --forest:     #1a2d27;   /* najtmavšie plochy a pätička */
+  --line:       rgba(26,45,39,.14);
+  --warn:       rgba(216,144,68,.13);   /* „over si“ a upozornenia */
+  --danger:     rgba(165,72,52,.11);
+  --ok:         rgba(61,109,77,.12);
+
+  /* — Pozadie stránky — */
+  --glow-warm: rgba(216,144,68,.12);   /* teplé svetlo */
+  --glow-cold: rgba(117,145,171,.10);  /* chladnejší tón */
+  --grain:     .03;                    /* zrnitosť 0 – .2 */
+  --stars:     .12;                    /* hviezdy na pozadí 0 – 1 */
+
+  /* — Typy miest na spanie: pastel (štítok) + sýta (bod na mape) — */
+  --chata:#f7dcc7;  --chata-m:#d6763a;
+  --utulna:#d6ecd8; --utulna-m:#4c8b66;
+  --izba:#d7e4f4;   --izba-m:#5a7fc5;
+  --sirak:#ebdff4;  --sirak-m:#8b6ec0;
+  --stan:#fbeed3;   --stan-m:#d9a53b;
+
+  /* — Písmo: Source Code Variable (monospace), s jemným rozostupom písmen — */
+  --font-display: "Source Code Variable", "Source Code Pro", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-body:    "Source Code Variable", "Source Code Pro", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --tracking:     .092em;  /* rozostup písmen 92/1000 em — jemný odstup medzi písmenami */
+
+  /* — Tvary a tiene — */
+  --radius-lg: 22px;
+  --radius-md: 14px;
+  --radius-pill: 999px;
+  --shadow:    0 10px 30px rgba(20,23,20,.10);
+  --shadow-up: 0 18px 40px rgba(20,23,20,.14);
+
+  --header-h: 112px;       /* nastavuje sa automaticky podľa výšky hlavičky */
+}
+
+/* ===== Základ ===== */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;color-scheme:light}
+body{margin:0;font-family:var(--font-body);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.55;padding-bottom:84px;letter-spacing:var(--tracking)}
+/* svetlé pozadie s jemným horským tapetovým vzorom */
+body::before{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
+  background:
+    radial-gradient(55% 45% at 12% 100%,var(--glow-warm),transparent 60%),
+    radial-gradient(40% 35% at 88% 14%,var(--glow-cold),transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,0) 34%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600' fill='none' stroke='%231f312a' stroke-opacity='.05' stroke-width='1.2'%3E%3Cpath d='M0 420c80-60 120-52 190-90 100-54 150-72 240-24 80 42 109 20 170-18v208H0z'/%3E%3Cpath d='M0 500c50-50 130-42 190-74 86-46 150-38 212-10 88 40 100 30 198-10v144H0z'/%3E%3Cpath d='M60 260c60-36 118-42 180-68 66-28 128-40 196-6 72 36 100 20 164-18v120H60z'/%3E%3C/svg%3E");
+  }
+body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:var(--stars);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600' fill='%23000000'%3E%3Ccircle cx='70' cy='90' r='1' fill='%231e2d26' fill-opacity='.24'/%3E%3Ccircle cx='170' cy='30' r='.8' fill='%231e2d26' fill-opacity='.18'/%3E%3Ccircle cx='260' cy='120' r='1' fill='%231e2d26' fill-opacity='.2'/%3E%3Ccircle cx='430' cy='50' r='.9' fill='%231e2d26' fill-opacity='.16'/%3E%3Ccircle cx='520' cy='170' r='1.2' fill='%231e2d26' fill-opacity='.18'/%3E%3Ccircle cx='100' cy='320' r='.9' fill='%231e2d26' fill-opacity='.14'/%3E%3Ccircle cx='340' cy='270' r='.8' fill='%231e2d26' fill-opacity='.18'/%3E%3Ccircle cx='490' cy='320' r='1' fill='%231e2d26' fill-opacity='.2'/%3E%3Ccircle cx='80' cy='500' r='1' fill='%231e2d26' fill-opacity='.15'/%3E%3Ccircle cx='230' cy='550' r='.9' fill='%231e2d26' fill-opacity='.18'/%3E%3Ccircle cx='400' cy='470' r='1' fill='%231e2d26' fill-opacity='.2'/%3E%3Ccircle cx='560' cy='520' r='.9' fill='%231e2d26' fill-opacity='.16'/%3E%3C/svg%3E")}
+/* zrnitosť ako na filmovej fotke — prekrýva celú stránku */
+.grain{position:fixed;inset:0;z-index:100;pointer-events:none;opacity:var(--grain);mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+svg{display:block;max-width:100%}
+img{display:block;max-width:100%}
+a{color:var(--glow)}
+::selection{background:var(--glow);color:var(--on-light)}
+h1,h2,h3{font-family:var(--font-display);font-stretch:condensed;line-height:1.05;margin:0 0 .45em;font-weight:800;letter-spacing:.01em}
+.section-head p{font-size:.98rem;max-width:700px}
+.modal-body{padding:24px;display:grid;gap:16px}
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px}
+.photo-grid img{width:100%;height:170px;object-fit:cover;border-radius:14px;border:1px solid var(--glass-line)}
+.drop{display:flex;align-items:center;justify-content:center;min-height:58px;border:1px dashed rgba(255,255,255,.25);border-radius:14px;background:rgba(255,255,255,.02);cursor:pointer;padding:10px 12px;position:relative;overflow:hidden}
+.drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.8}
+.drop span{position:relative;z-index:1}
+h1,h2{text-transform:uppercase;letter-spacing:.035em}
+h2{font-size:clamp(2rem,5.5vw,3.1rem)} h3{font-size:1.3rem}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+.muted{color:var(--ink-soft)}
+.hidden{display:none!important}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.eyebrow{display:inline-block;font:700 .74rem/1 var(--font-body);letter-spacing:.2em;text-transform:uppercase;color:var(--glow);margin-bottom:.9em}
+/* krátka akcentová linka pod nadpisom (ako v magazínoch) */
+.bar-accent{display:block;width:64px;height:4px;border-radius:2px;background:var(--glow);margin:18px 0 20px}
+.topo{}  /* textúra je teraz na pozadí celej stránky */
+.card,.panel,.route-card,.stat,.route-item,.post,.empty{border:1px solid var(--glass-line)}
+
+/* ===== Tlačidlá a štítky ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.45em;min-height:46px;padding:.65em 1.3em;border-radius:var(--radius-pill);
+  border:2px solid var(--brand);background:var(--brand);color:#fff;font:700 .92rem var(--font-body);letter-spacing:.02em;cursor:pointer;text-decoration:none;
+  transition:transform .15s,background .15s,box-shadow .15s}
+.btn:hover{background:var(--brand-dark);border-color:var(--brand-dark);box-shadow:0 8px 22px rgba(63,138,98,.35)}
+.btn:active{transform:scale(.97)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn.ghost:hover{background:var(--surface-2);border-color:rgba(255,255,255,.25);box-shadow:none}
+.btn.light{background:var(--ink);border-color:var(--ink);color:var(--on-light)}
+.btn.light:hover{background:#fff;border-color:#fff;box-shadow:0 8px 22px rgba(0,0,0,.35)}
+.btn.glow{background:var(--glow);border-color:var(--glow);color:var(--on-light)}
+.btn.glow:hover{background:#ffc965;border-color:#ffc965;box-shadow:0 8px 26px rgba(242,182,75,.4)}
+.btn.on-dark{background:rgba(0,0,0,.15);border-color:rgba(255,255,255,.55);color:#fff;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.btn.on-dark:hover{background:rgba(255,255,255,.12);box-shadow:none}
+.btn.small{min-height:38px;padding:.4em .95em;font-size:.85rem}
+.btn.danger{background:#b5462f;border-color:#b5462f}
+.link{background:none;border:0;padding:0 0 3px;color:#fff;font:600 .95rem var(--font-body);cursor:pointer;border-bottom:1px solid currentColor}
+.link:hover{color:var(--glow)}
+.icon-btn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--surface-2);cursor:pointer;font-size:1rem;color:var(--ink);flex:0 0 auto;display:grid;place-items:center}
+.icon-btn:hover{background:rgba(255,255,255,.18)}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:.25em .75em;border-radius:var(--radius-pill);font-size:.76rem;font-weight:700;background:var(--sand);color:var(--ink)}
+.t-chata,.t-utulna,.t-izba,.t-sirak,.t-stan,.diff-1,.diff-2,.diff-3{color:var(--on-light)}
+.t-chata{background:var(--chata)} .t-utulna{background:var(--utulna)} .t-izba{background:var(--izba)} .t-sirak{background:var(--sirak)} .t-stan{background:var(--stan)}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+.badge{position:absolute;top:12px;left:12px;z-index:2;background:rgba(10,16,13,.55);color:#fff;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:.25em .7em;border-radius:var(--radius-pill);font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.14em}
+.badge.new{left:auto;right:12px;background:var(--glow);color:var(--on-light)}
+.verify{background:var(--warn);color:#ffd88a;padding:0 .4em;border-radius:5px;font-size:.86em;font-weight:700;white-space:nowrap}
+select,input,textarea{width:100%;min-height:46px;padding:.6em .85em;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.06);font:inherit;color:var(--ink)}
+select option,select optgroup{background:var(--solid);color:var(--ink)}
+input::placeholder,textarea::placeholder{color:rgba(239,233,220,.38)}
+textarea{min-height:90px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--glow);outline-offset:1px}
+label.field{display:grid;gap:6px;font-weight:600;font-size:.88rem}
+label.field small{font-weight:400;color:var(--ink-soft)}
+code{background:var(--surface-2);padding:.05em .35em;border-radius:5px}
+
+/* ===== Hlavička — menu je stále viditeľné ===== */
+header{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.72);backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);border-bottom:1px solid var(--glass-line)}
+.head{display:flex;align-items:center;gap:20px;padding-top:10px}
+.logo{display:flex;align-items:center;gap:9px;font:800 1.35rem var(--font-display);font-stretch:condensed;letter-spacing:.02em;background:none;border:0;cursor:pointer;color:var(--ink);padding:0;white-space:nowrap}
+.logo span span{color:var(--glow)}
+.logo svg{width:32px;height:32px}
+#mainNav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;padding:10px 0;margin:0 -16px;padding-left:16px;padding-right:16px;scroll-snap-type:x proximity}
+#mainNav::-webkit-scrollbar{display:none}
+#mainNav button{flex:0 0 auto;padding:.5em .9em;border:0;background:transparent;font:600 .9rem var(--font-body);color:var(--ink-soft);border-radius:var(--radius-pill);cursor:pointer;scroll-snap-align:start;white-space:nowrap;transition:color .15s,background .15s}
+#mainNav button:hover{color:var(--ink);background:var(--surface-2)}
+#mainNav button.active{background:var(--ink);color:var(--on-light)}
+#mainNav button.cta{color:var(--glow);box-shadow:inset 0 0 0 1.5px var(--glow)}
+#mainNav button.cta.active{background:var(--glow);color:var(--on-light)}
+@media(max-width:1099px){.head{flex-direction:column;align-items:flex-start;gap:0}.head #mainNav{width:calc(100% + 32px)}}
+@media(min-width:1100px){.head{padding:0;height:70px}#mainNav{margin:0 0 0 auto;padding:0}}
+
+/* ===== Stránky a sekcie ===== */
+.page{display:none}
+.page.active{display:block;animation:fade .5s ease}
+@keyframes fade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+section{padding:56px 0}
+.section-head{margin-bottom:26px;max-width:740px}
+.section-head h2::after{content:"";display:block;width:64px;height:4px;border-radius:2px;background:var(--glow);margin-top:18px}
+.section-head p{margin:0;color:var(--ink-soft);font-size:1.05rem}
+.section-head.split{max-width:none;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.panel{background:var(--surface);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.panel h3{text-transform:uppercase;letter-spacing:.04em}
+.panel ul{padding-left:1.2em;margin:.4em 0}
+.panel li{margin-bottom:.35em}
+.two{display:grid;gap:18px}
+@media(min-width:820px){.two{grid-template-columns:1fr 1fr}}
+.grid{display:grid;grid-template-columns:1fr;gap:22px}
+@media(min-width:640px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1000px){.grid{grid-template-columns:repeat(3,1fr)}}
+.empty{padding:28px;text-align:center;background:var(--surface);border-radius:var(--radius-lg);border:1px dashed rgba(255,255,255,.18)}
+
+/* ===== Domov: hero (filmové scény pohorí) ===== */
+.hero{position:relative;height:clamp(600px,88vh,820px);overflow:hidden;background:#0b1020}
+.slide{position:absolute;inset:0;opacity:0;transition:opacity 1.4s ease;pointer-events:none}
+.slide.on{opacity:1;pointer-events:auto}
+.slide svg{width:100%;height:100%}
+.slide.on .scene{animation:drift 12s ease-out both}
+@keyframes drift{from{transform:scale(1.08)}to{transform:scale(1)}}
+.scene{transform-origin:60% 100%}
+.hero::after{content:"";position:absolute;inset:auto 0 0;height:120px;background:linear-gradient(transparent,var(--bg));pointer-events:none}
+.hero-copy{position:absolute;inset:0;z-index:2;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:clamp(28px,6vw,72px) 0 34px}
+.hero-copy>*{pointer-events:auto}
+.hero h1{color:#fff;font-size:clamp(2.4rem,6.2vw,4.4rem);max-width:900px;text-shadow:0 4px 30px rgba(0,0,0,.45);margin:0}
+.hero h1 em{font-style:normal;color:var(--glow)}
+.hero .lead{color:rgba(255,255,255,.88);font-size:clamp(1rem,2.2vw,1.15rem);max-width:620px;margin:0 0 22px;text-shadow:0 1px 12px rgba(0,0,0,.5)}
+.hero-bottom{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:flex-end;gap:14px 22px;text-align:right}
+@media(max-width:699px){.peak-lbl{display:none}.hero-copy{padding-bottom:84px}.hero-bottom{justify-content:space-between;text-align:left}}
+.range-name{color:#fff;font:800 clamp(1.6rem,4.4vw,2.4rem)/1 var(--font-display);font-stretch:condensed;text-transform:uppercase;letter-spacing:.05em;text-shadow:0 2px 16px rgba(0,0,0,.5)}
+.range-name small{display:block;font:700 .72rem var(--font-body);letter-spacing:.2em;color:var(--glow);margin-bottom:8px}
+.car-ctrl{display:flex;align-items:center;gap:8px}
+.car-ctrl .icon-btn{background:rgba(0,0,0,.3);border-color:rgba(255,255,255,.3);color:#fff;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.car-dots{display:flex;gap:6px;margin-right:6px}
+.car-dots button{width:22px;height:3px;border-radius:2px;border:0;background:rgba(255,255,255,.35);cursor:pointer;padding:0;transition:width .3s,background .3s}
+.car-dots button.on{width:44px;background:var(--glow)}
+/* popisky v obraze (ako anotácie v magazíne) */
+.anno{font:700 11px var(--font-body);letter-spacing:.16em;fill:#fff;text-transform:uppercase}
+.anno-sub{font:600 10px var(--font-body);letter-spacing:.12em;fill:rgba(255,255,255,.7)}
+/* trasová čiara a pečiatkové štítky chát na profile pohoria — v štýle turistického plagátu */
+.trail-line{fill:none;stroke:#fff;stroke-width:1.6;stroke-dasharray:1 7;stroke-linecap:round;opacity:.8}
+.stop-no{font:800 9px var(--font-body);fill:#1a1208}
+.stamp-lbl{font-size:9.5px;letter-spacing:.1em;paint-order:stroke;stroke:rgba(5,9,7,.55);stroke-width:3px;stroke-linejoin:round}
+.prof-hut{cursor:pointer}
+.prof-hut .pulse{transform-origin:center;transform-box:fill-box;animation:pulse 2.6s ease-out infinite}
+@keyframes pulse{from{opacity:.8;transform:scale(1)}to{opacity:0;transform:scale(3)}}
+.prof-hut:hover .core,.prof-hut:focus .core{stroke-width:5}
+.caption{position:absolute;right:16px;bottom:14px;z-index:2;font:italic .78rem var(--font-body);color:rgba(255,255,255,.65);text-align:right;max-width:280px}
+
+/* ===== Banner „prvá noc“ (Domov) ===== */
+.banner{position:relative;min-height:clamp(460px,70vh,640px);display:flex;align-items:center;overflow:hidden;margin:20px 0}
+.banner>svg{position:absolute;inset:0;width:100%;height:100%}
+.banner .wrap{position:relative;z-index:1;width:100%}
+.banner h2{font-size:clamp(2.2rem,6vw,3.8rem);color:#fff;max-width:600px;margin:0;text-shadow:0 4px 30px rgba(0,0,0,.5)}
+.banner p{max-width:440px;color:rgba(255,255,255,.85)}
+
+/* ===== Vodorovný pás trás (Domov) ===== */
+.strip{display:grid;grid-auto-flow:column;grid-auto-columns:min(82%,360px);gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 16px 18px;margin:0 -16px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
+.strip>*{scroll-snap-align:start}
+
+/* ===== Sticky filtre ===== */
+.filterbar{position:sticky;top:var(--header-h);z-index:30;background:rgba(255,255,255,.76);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:12px 0;border-bottom:1px solid var(--glass-line)}
+.filterbar.inline{position:static;background:none;border:0;padding:0 0 16px;backdrop-filter:none}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:.4em 1.05em;border-radius:var(--radius-pill);border:1px solid var(--line);background:var(--surface);font:600 .86rem var(--font-body);cursor:pointer;color:var(--ink)}
+.chip:hover{background:var(--surface-2)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--on-light);border-color:var(--ink)}
+.filter-panel{display:none;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.filter-panel.open{display:grid}
+.filter-panel label{font-size:.78rem;font-weight:700;color:var(--ink-soft);display:grid;gap:4px}
+.equip{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}
+.equip label{display:flex!important;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-pill);padding:.35em .85em;color:var(--ink)}
+.equip input{width:auto;min-height:auto;accent-color:var(--glow)}
+@media(min-width:900px){.filter-panel{grid-template-columns:repeat(5,1fr)}}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:20px 24px;align-items:end;padding:20px 22px;margin:20px 0 16px;background:var(--surface);border:1px solid var(--glass-line);border-radius:4px}
+.f-group,.filter-panel label{display:grid;gap:8px;margin:0}
+.f-label,.filter-panel label{font:700 .62rem var(--font-body);letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
+.f-label b{color:var(--brand);letter-spacing:.08em}
+.filters select,.filter-panel select{min-height:42px;padding:.5em 2.2em .5em .8em;border-radius:3px;border:1px solid var(--line);background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%231f2a24' stroke-width='1.5'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E") no-repeat right .85em center;appearance:none;-webkit-appearance:none;font-size:.88rem;font-weight:500;letter-spacing:.02em;text-transform:none;color:var(--ink);cursor:pointer}
+.filters select:hover,.filter-panel select:hover{border-color:var(--ink)}
+.filters input[type=range]{padding:0;min-height:42px;border:0;background:none;accent-color:var(--brand);cursor:pointer}
+.filters .btn{justify-self:start}
+.filterbar.inline .filter-panel{margin-top:14px;padding-top:18px;border-top:1px solid var(--glass-line);gap:18px 22px}
+.filter-panel .equip{gap:6px}
+.filter-panel .equip label{position:relative;display:inline-flex!important;align-items:center;min-height:38px;padding:.4em 1em;border:1px solid var(--line);border-radius:3px;background:transparent;font:600 .72rem var(--font-body);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);cursor:pointer;transition:background .15s,color .15s}
+.filter-panel .equip label:hover{border-color:var(--ink)}
+.filter-panel .equip input{position:absolute;opacity:0;pointer-events:none}
+.filter-panel .equip label:has(input:checked){background:var(--ink);border-color:var(--ink);color:#f1eee6}
+.filter-panel .equip label:has(input:checked)::before{content:"✓";margin-right:6px}
+.filter-panel .equip label:has(input:focus-visible){outline:2px solid var(--brand);outline-offset:2px}
+.filterbar.inline #resultCount{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase}
+
+/* ===== Karty miest ===== */
+.card{background:var(--surface);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;transition:transform .3s,box-shadow .3s}
+.card:hover{transform:translateY(-5px);box-shadow:var(--shadow-up)}
+.card .cover{position:relative;aspect-ratio:4/3;overflow:hidden}
+.card .cover svg,.card .cover img{width:100%;height:100%;object-fit:cover;transition:transform .8s}
+.card:hover .cover svg,.card:hover .cover img{transform:scale(1.05)}
+/* názov priamo na obrázku */
+.cover-title{position:absolute;left:0;right:0;bottom:0;z-index:1;padding:40px 18px 14px;background:linear-gradient(transparent,rgba(5,9,7,.85));color:#fff}
+.cover-title h3{margin:0;font-size:1.55rem;text-transform:uppercase;letter-spacing:.04em}
+.cover-title small{font:700 .7rem var(--font-body);letter-spacing:.18em;text-transform:uppercase;color:var(--glow)}
+.card .body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:10px;flex:1}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.9rem;margin:2px 0}
+.facts dt{color:var(--ink-soft)} .facts dd{margin:0;font-weight:600}
+.card .actions{margin-top:auto;padding-top:6px}
+.type-group{margin-bottom:46px}
+.type-head{display:flex;align-items:center;gap:14px;padding:16px 20px;border-radius:var(--radius-lg);margin-bottom:18px;color:var(--on-light)}
+.type-head h3{margin:0 0 2px;text-transform:uppercase;letter-spacing:.05em}
+.type-head p{margin:0;font-size:.92rem}
+.type-head .muted{color:rgba(28,38,32,.6)}
+.type-head .verify{color:#6b4a0a;background:rgba(242,182,75,.35)}
+
+/* ===== Trasy — prezentačná časť ===== */
+.route-card{position:relative;background:var(--surface);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);cursor:pointer;display:flex;flex-direction:column;transition:transform .3s,box-shadow .3s;padding:0;text-align:left;font:inherit;color:inherit;width:100%}
+.route-card:hover{transform:translateY(-5px);box-shadow:var(--shadow-up)}
+.route-card .cover{position:relative;aspect-ratio:4/5;overflow:hidden}
+.route-card .cover>svg{width:100%;height:100%;transition:transform .8s}
+.route-card:hover .cover>svg{transform:scale(1.05)}
+.route-card .body{padding:14px 18px 18px;display:grid;gap:8px}
+/* štatistiky v obraze — štýl zdieľania zo Stravy */
+.strava{position:absolute;left:16px;top:44px;z-index:1;display:grid;grid-template-columns:auto auto;gap:10px 22px;color:#fff;text-shadow:0 1px 10px rgba(0,0,0,.6)}
+.strava small{display:block;font:600 .64rem var(--font-body);letter-spacing:.1em;opacity:.85}
+.strava b{font:700 1.15rem/1.1 var(--font-body)}
+.stat-row{display:flex;flex-wrap:wrap;gap:14px;font-size:.86rem;color:var(--ink-soft)}
+.stat-row b{color:var(--ink);font-size:1rem}
+.featured{position:relative;display:grid;border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-up);margin-bottom:30px;min-height:clamp(480px,72vh,620px);border:1px solid var(--glass-line)}
+.featured>svg{position:absolute;inset:0;width:100%;height:100%}
+.featured .body{position:relative;z-index:1;padding:clamp(26px,5vw,56px);display:grid;gap:12px;align-content:end;max-width:620px;background:linear-gradient(90deg,rgba(5,9,7,.75),transparent)}
+.featured h3{font-size:clamp(2.2rem,6vw,3.6rem);margin:0;text-transform:uppercase;letter-spacing:.035em;color:#fff}
+.featured .stat-row{color:rgba(255,255,255,.75)} .featured .stat-row b{color:#fff}
+.diff-1{background:#cfe9d6} .diff-2{background:#f6dfb8} .diff-3{background:#f3c9bf}
+
+/* detail trasy */
+.timeline{list-style:none;margin:0;padding:0;position:relative}
+.timeline::before{content:"";position:absolute;left:19px;top:8px;bottom:8px;width:2px;background:repeating-linear-gradient(var(--glow) 0 6px,transparent 6px 12px);opacity:.7}
+.timeline li{position:relative;padding:0 0 20px 56px}
+.timeline .day{position:absolute;left:0;top:0;width:40px;height:40px;border-radius:50%;background:var(--glow);color:var(--on-light);display:grid;place-items:center;font:800 .95rem var(--font-body);box-shadow:0 0 0 6px var(--solid)}
+.timeline b{font-family:var(--font-display);font-stretch:condensed;font-size:1.15rem;text-transform:uppercase;letter-spacing:.06em}
+.stops{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.88rem}
+.stop-pill{display:inline-flex;align-items:center;gap:5px;background:var(--sand);border-radius:var(--radius-pill);padding:.28em .8em;border:0;font:inherit;font-size:.86rem;font-weight:600;color:var(--ink)}
+button.stop-pill{cursor:pointer}
+.elev{background:rgba(0,0,0,.2);border-radius:var(--radius-md);padding:10px;border:1px solid var(--line)}
+.note{background:var(--warn);border-radius:12px;padding:.7em .9em;font-size:.9rem;border-left:3px solid var(--glow)}
+.stops{gap:8px 6px}
+.stop-pill{gap:6px;border:1px solid var(--line);background:rgba(31,42,36,.02);text-decoration:none;border-radius:2px;padding:.38em .68em;transition:border-color .15s ease,background .15s ease}
+.stop-pill .ico{display:inline-grid;place-items:center;width:1.05rem;height:1.05rem;font-size:.8rem;line-height:1;color:var(--brand);font-weight:700}
+.stop-pill small{font-size:.56rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);font-weight:700}
+.stop-pill.t-bod{background:transparent;border-color:var(--line)}
+button.stop-pill:hover,a.stop-pill:hover{border-color:var(--ink);background:rgba(31,42,36,.04)}
+.stop-back{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
+.stop-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:6px 0 0;font-size:.72rem;color:var(--ink-soft)}
+.stop-legend span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.note.danger{background:var(--danger);border-left-color:#e26a4f}
+.note.ok{background:var(--ok);border-left-color:var(--brand-dark)}
+
+/* ===== Mapa ===== */
+.map-layout{display:grid;gap:16px}
+@media(min-width:960px){.map-layout{grid-template-columns:1.7fr 1fr}}
+.map-box{position:relative;background:#101c16;border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);touch-action:none;border:1px solid var(--glass-line)}
+.map-box svg{width:100%;height:auto;aspect-ratio:766/420;cursor:grab;user-select:none;-webkit-user-select:none}
+.map-box svg.drag{cursor:grabbing}
+.map-zoom{position:absolute;right:10px;top:10px;display:grid;gap:6px}
+.map-zoom .icon-btn{font-weight:700;background:rgba(0,0,0,.4)}
+.m-place{cursor:pointer}
+.m-label{font-family:var(--font-body);font-weight:700;fill:var(--ink);paint-order:stroke;stroke:#0e1612;stroke-linejoin:round}
+.m-city{font-family:var(--font-body);fill:rgba(31,42,36,.5)}
+.stop-list{list-style:none;padding:0;margin:0 0 10px;counter-reset:s}
+.stop-list li{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border:1px solid var(--glass-line);border-radius:12px;padding:8px 10px;margin-bottom:6px}
+.stop-list li::before{counter-increment:s;content:counter(s);background:var(--glow);color:var(--on-light);border-radius:50%;width:26px;height:26px;display:grid;place-items:center;font-weight:800;flex:0 0 auto;font-size:.85rem}
+.stop-list .n{flex:1;font-size:.92rem;min-width:0}
+
+/* ===== Moje trasy ===== */
+.my-layout{display:grid;gap:18px}
+@media(min-width:900px){.my-layout{grid-template-columns:340px 1fr}}
+.route-item{display:block;width:100%;text-align:left;background:var(--surface);border-radius:var(--radius-md);padding:13px 15px;margin-bottom:8px;cursor:pointer;font:inherit;color:var(--ink);box-shadow:var(--shadow)}
+.route-item.on{border-color:var(--glow);box-shadow:0 0 0 1px var(--glow),var(--shadow)}
+.route-item small{color:var(--ink-soft)}
+.editor{display:grid;gap:14px}
+
+/* ===== Pridať chatu ===== */
+.form-grid{display:grid;gap:14px}
+@media(min-width:700px){.form-grid{grid-template-columns:1fr 1fr}.form-grid .full{grid-column:1/-1}}
+fieldset{border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px;margin:0}
+legend{font:800 1.05rem var(--font-display);font-stretch:condensed;text-transform:uppercase;letter-spacing:.06em;padding:0 8px;color:var(--glow)}
+.checks{display:flex;flex-wrap:wrap;gap:8px}
+.checks label{display:flex;align-items:center;gap:6px;background:var(--surface-2);border-radius:var(--radius-pill);padding:.35em .9em;font-weight:500}
+.checks input{width:auto;min-height:auto;accent-color:var(--glow)}
+.steps{counter-reset:k;list-style:none;padding:0;margin:0;display:grid;gap:14px}
+.steps li{position:relative;padding-left:46px}
+.steps li::before{counter-increment:k;content:counter(k);position:absolute;left:0;top:0;width:32px;height:32px;border-radius:50%;background:var(--glow);color:var(--on-light);display:grid;place-items:center;font-weight:800}
+pre.code{background:#050a07;color:#d9f2e2;border:1px solid var(--line);border-radius:var(--radius-md);padding:16px;overflow:auto;font-size:.82rem;line-height:1.5;max-height:420px;white-space:pre}
+.tabs{display:flex;gap:6px;margin-bottom:16px}
+.form-msg{padding:.7em .9em;border-radius:12px;background:var(--ok)}
+
+/* ===== Príprava, projekt ===== */
+.quiz label{display:flex;gap:10px;align-items:flex-start;padding:.65em 0;border-bottom:1px dashed var(--line);cursor:pointer}
+.quiz input{width:22px;height:22px;min-height:auto;flex:0 0 auto;margin-top:2px;accent-color:var(--glow)}
+.result{margin-top:14px;padding:14px;border-radius:12px;background:var(--ok);font-weight:600;border-left:3px solid var(--brand-dark)}
+form.panel{display:grid;gap:12px}
+.bars{display:grid;gap:12px}
+.bar{display:grid;grid-template-columns:120px 1fr 48px;gap:10px;align-items:center;font-size:.9rem}
+.bar .track{height:10px;background:rgba(255,255,255,.08);border-radius:var(--radius-pill);overflow:hidden}
+.bar .fill{height:100%;background:linear-gradient(90deg,var(--brand),var(--glow));border-radius:var(--radius-pill);width:0;transition:width 1.2s ease}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.stat{background:var(--surface);border-radius:var(--radius-md);padding:20px;box-shadow:var(--shadow)}
+.stat b{display:block;font:800 2.6rem/1 var(--font-display);font-stretch:condensed;color:var(--glow);margin-bottom:8px}
+@media(min-width:700px){.stats{grid-template-columns:repeat(4,1fr)}}
+
+/* ===== Zážitky — mini sociálna sieť ===== */
+.feed-layout{display:grid;gap:24px}
+@media(min-width:980px){.feed-layout{grid-template-columns:minmax(0,600px) 320px;justify-content:center;align-items:start}.feed-side{position:sticky;top:calc(var(--header-h) + 16px)}}
+.feed-side{display:grid;gap:16px}
+.post{background:var(--surface);border-radius:26px;overflow:hidden;box-shadow:var(--shadow);margin-bottom:26px;animation:fade .4s ease}
+.post-head{display:flex;align-items:center;gap:11px;padding:14px 16px}
+.avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font:800 1.05rem var(--font-body);color:#fff;flex:0 0 auto;box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--glow)}
+.who{flex:1;min-width:0;line-height:1.3}
+.who b{display:block} .who small{color:var(--ink-soft)}
+.media{position:relative;aspect-ratio:4/5;background:#0b1020}
+.media-track{display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
+.media-track::-webkit-scrollbar{display:none}
+.media-track>.slide-m{position:relative;flex:0 0 100%;height:100%;scroll-snap-align:start;overflow:hidden}
+.slide-m img,.slide-m>svg{width:100%;height:100%;object-fit:cover}
+.slide-m .badge{top:auto;bottom:14px}
+.media-dots{position:absolute;bottom:14px;right:14px;display:flex;gap:6px;z-index:3}
+.media-dots button{border:0;cursor:pointer;padding:.35em .8em;border-radius:var(--radius-pill);font:700 .72rem var(--font-body);letter-spacing:.06em;background:rgba(0,0,0,.4);color:#fff;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.media-dots button.on{background:#fff;color:var(--on-light)}
+/* štatistiky + krivka trasy priamo na fotke (ako zdieľanie zo Stravy) */
+.sticker{position:absolute;z-index:2;left:0;right:0;top:0;padding:18px 18px 70px;display:flex;justify-content:space-between;gap:12px;color:#fff;pointer-events:none;
+  background:linear-gradient(rgba(0,0,0,.5),transparent)}
+.sticker .nums{display:grid;grid-template-columns:auto auto;gap:10px 20px;align-content:start;text-shadow:0 1px 10px rgba(0,0,0,.6)}
+.sticker .nums small{display:block;font:600 .62rem var(--font-body);letter-spacing:.08em;opacity:.85}
+.sticker .nums b{font:700 1.1rem/1.1 var(--font-body)}
+.sticker svg{width:44%;max-width:220px;height:auto;aspect-ratio:1;flex:0 0 auto;filter:drop-shadow(0 1px 4px rgba(0,0,0,.6))}
+.map-slide{background:#0f1a15}
+.map-slide .lbl{font:700 12px var(--font-body);fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.7);stroke-width:3px;stroke-linejoin:round}
+.lbl-s{font:700 8px var(--font-body);fill:#fff;letter-spacing:.04em;paint-order:stroke;stroke:rgba(0,0,0,.45);stroke-width:2px}
+.map-note{position:absolute;left:12px;bottom:14px;font-size:.72rem;background:rgba(0,0,0,.45);color:#fff;padding:.25em .7em;border-radius:var(--radius-pill)}
+.post-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:16px 16px 6px}
+.post-stats div{display:grid}
+.post-stats small{font-size:.66rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.1em;font-weight:700}
+.post-stats b{font:800 1.35rem var(--font-display);font-stretch:condensed}
+.spark{padding:0 16px}
+.spark svg{width:100%;height:56px}
+.post-body{padding:8px 16px 4px}
+.post-body h3{margin:.1em 0 .35em;font-size:1.5rem;text-transform:uppercase;letter-spacing:.04em}
+.post-body p{margin:0 0 10px}
+.post-actions{display:flex;gap:4px;padding:6px 10px;border-top:1px solid var(--glass-line);margin-top:8px}
+.act{display:inline-flex;align-items:center;gap:6px;border:0;background:none;font:600 .92rem var(--font-body);color:var(--ink);padding:.55em .8em;border-radius:var(--radius-pill);cursor:pointer}
+.act:hover{background:var(--surface-2)}
+.act.liked{color:#ff6b5e}
+.act.liked .heart{display:inline-block;animation:pop .35s ease}
+@keyframes pop{50%{transform:scale(1.45)}}
+.comments{padding:0 16px 16px;display:grid;gap:8px}
+.comment{font-size:.92rem} .comment b{margin-right:5px}
+.comment-form{display:flex;gap:8px}
+.comment-form input{min-height:40px;border-radius:var(--radius-pill)}
+.challenge-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.challenge-list li{display:flex;justify-content:space-between;gap:8px;background:var(--surface-2);border-radius:12px;padding:.55em .8em;font-size:.9rem}
+.challenge-list span{color:var(--glow);white-space:nowrap;font-weight:700}
+.me-card{display:grid;gap:12px;text-align:center;justify-items:center}
+.drop{display:grid;place-items:center;aspect-ratio:4/3;border:1.5px dashed rgba(255,255,255,.25);border-radius:var(--radius-lg);cursor:pointer;overflow:hidden;background:rgba(255,255,255,.04);font-weight:600;color:var(--ink-soft);position:relative}
+.drop img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.route-preview{display:grid;grid-template-columns:110px 1fr;gap:14px;align-items:center;background:#050a07;border:1px solid var(--line);color:#fff;border-radius:var(--radius-md);padding:12px}
+.route-preview svg{width:110px;height:110px}
+.mini-posts{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.mini-post{position:relative;aspect-ratio:1;border-radius:16px;overflow:hidden;border:0;padding:0;cursor:pointer}
+.mini-post svg,.mini-post img{width:100%;height:100%;object-fit:cover}
+.mini-post span{position:absolute;left:8px;right:8px;bottom:8px;color:#fff;font-weight:700;font-size:.8rem;text-align:left;text-shadow:0 1px 6px rgba(0,0,0,.8)}
+
+/* ===== Modálne okno (detail miesta / trasy) ===== */
+.overlay{position:fixed;inset:0;z-index:60;background:rgba(3,6,4,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:flex-end;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:var(--solid);width:min(700px,100%);max-height:94vh;overflow:auto;border-radius:24px 24px 0 0;position:relative;animation:up .35s ease;border:1px solid var(--glass-line)}
+.modal.wide{width:min(960px,100%)}
+@media(min-width:700px){.overlay{align-items:center;padding:20px}.modal{border-radius:24px}}
+@keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.modal-cover{position:relative;aspect-ratio:16/8}
+.modal-cover>svg,.modal-cover>img{width:100%;height:100%;object-fit:cover}
+.modal-body{padding:24px;display:grid;gap:16px}
+.modal-body h2{margin:0}
+.modal-close{position:absolute;top:12px;right:12px;z-index:3;background:rgba(0,0,0,.45);border-color:rgba(255,255,255,.25);color:#fff}
+
+/* ===== Lišta aktívnej trasy + oznámenie ===== */
+#routeBar{position:fixed;left:0;right:0;bottom:0;z-index:50;background:rgba(8,14,11,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--glass-line);color:#fff;display:flex;align-items:center;gap:10px;padding:10px 14px;min-height:66px;box-shadow:0 -8px 30px rgba(0,0,0,.35)}
+#routeBar .info{flex:1;min-width:0;font-size:.92rem}
+#routeBar .info small{color:var(--glow);font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:.66rem}
+#routeBar .info b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(min-width:900px){#routeBar{left:auto;right:20px;bottom:20px;width:440px;border-radius:20px;border:1px solid var(--glass-line)}body{padding-bottom:20px}}
+#toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:70;background:var(--ink);color:var(--on-light);padding:.7em 1.15em;border-radius:var(--radius-pill);box-shadow:0 8px 30px rgba(0,0,0,.4);font-weight:700;opacity:0;transition:opacity .25s;pointer-events:none;max-width:92vw;text-align:center}
+#toast.on{opacity:1}
+
+/* ===== Pätička ===== */
+footer{background:var(--forest);color:rgba(255,255,255,.7);font-size:.9rem;margin-top:40px;position:relative}
+footer .ridge{display:block;width:100%;height:120px}
+footer .wrap{padding-top:10px;padding-bottom:110px;display:grid;gap:18px}
+footer .logo{color:#fff}
+footer nav{display:flex;flex-wrap:wrap;gap:6px}
+footer nav button{background:none;border:0;color:rgba(255,255,255,.8);font:inherit;cursor:pointer;padding:.3em .5em;border-radius:8px}
+footer nav button:hover{background:rgba(255,255,255,.08);color:var(--glow)}
+
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ╔════════════════════════════════════════════════════════════════╗
+   ║  v6 · MINIMALISTICKÝ OUTDOOR — prepisuje dizajn z v5            ║
+   ║  Svetlá „papierová“ stránka + tlmené zemité plochy s vrstevnicami║
+   ╚════════════════════════════════════════════════════════════════╝ */
+:root{
+  --bg:#f1eee6; --surface:#fbfaf6; --surface-2:rgba(31,42,36,.06); --solid:#fbfaf6;
+  --glass-line:rgba(31,42,36,.13); --sand:rgba(31,42,36,.07); --line:rgba(31,42,36,.18);
+  --ink:#1f2a24; --ink-soft:rgba(31,42,36,.62); --on-light:#1f2a24;
+  --brand:#2f5d46; --brand-dark:#244a37; --glow:#d9b26a; --forest:#26332a;
+  --warn:rgba(217,178,106,.28); --danger:rgba(190,92,70,.18); --ok:rgba(47,93,70,.14);
+  --radius-lg:4px; --radius-md:3px; --radius-pill:3px;
+  --shadow:none; --shadow-up:none;
+  --font-display:"Source Code Variable","Source Code Pro",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+html{color-scheme:light}
+body::before,body::after,.grain{display:none}
+*{animation:none!important}
+.card:hover,.route-card:hover{transform:none}
+.card:hover .cover svg,.card:hover .cover img,.route-card:hover .cover>svg{transform:none}
+a{color:var(--brand)}
+::selection{background:var(--brand);color:#fff}
+/* typografia: široké riedke písmo, ľahké ako v lookbookoch */
+h1,h2,h3{font-weight:500;font-stretch:normal;letter-spacing:.06em}
+h1,h2{font-weight:300;letter-spacing:.14em;text-transform:uppercase}
+h2{font-size:clamp(1.5rem,3.4vw,2.3rem)} h3{font-size:1.05rem;text-transform:uppercase;letter-spacing:.1em}
+.eyebrow{color:var(--brand);letter-spacing:.28em;font-size:.68rem}
+.hero .eyebrow,.banner .eyebrow,.featured .eyebrow{color:var(--glow)}
+.bar-accent,.section-head h2::after{display:none}
+.section-head{margin-bottom:34px}
+section{padding:72px 0}
+/* tlačidlá a štítky: plošné, hranaté */
+.btn{background:var(--brand);border-color:var(--brand);letter-spacing:.12em;text-transform:uppercase;font-size:.74rem;font-weight:600;box-shadow:none!important;transform:none!important}
+.btn:hover{background:var(--brand-dark);border-color:var(--brand-dark)}
+.btn.ghost{color:var(--ink);border-color:var(--line)} .btn.ghost:hover{background:var(--surface-2);border-color:var(--ink)}
+.btn.glow{background:#f1eee6;border-color:#f1eee6;color:#1f2a24} .btn.glow:hover{background:#fff;border-color:#fff}
+.btn.on-dark{background:transparent;border-color:rgba(255,255,255,.7);color:#fff}
+.btn.on-dark:hover{background:rgba(255,255,255,.14)}
+.btn.small{font-size:.68rem}
+.btn.light{background:var(--ink);border-color:var(--ink);color:#f1eee6}
+.link{color:var(--ink)} .hero .link,.banner .link{color:#fff}
+.chip{letter-spacing:.06em;background:transparent}
+.chip[aria-pressed="true"],#mainNav button.active{background:var(--ink);color:#f1eee6;border-color:var(--ink)}
+.tag{letter-spacing:.04em}
+select,input,textarea{background:rgba(31,42,36,.035);border-color:var(--line)}
+input:focus,select:focus,textarea:focus{outline-color:var(--brand)}
+.verify{color:#7a5410}
+code{background:var(--surface-2)}
+#toast{background:var(--ink);color:#f1eee6}
+/* hlavička */
+header{background:rgba(241,238,230,.92);border-bottom:1px solid var(--glass-line)}
+.logo{color:var(--ink);font-weight:300;letter-spacing:.16em;text-transform:uppercase;font-stretch:normal;font-size:1.05rem}
+.logo span span{color:var(--brand);font-weight:700}
+.logo svg circle{fill:var(--brand)}
+#mainNav button{letter-spacing:.1em;text-transform:uppercase;font-size:.7rem;font-weight:600}
+#mainNav button:hover{background:var(--surface-2)}
+#mainNav button.cta{color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}
+#mainNav button.cta.active{background:var(--brand);color:#fff}
+.filterbar{background:rgba(241,238,230,.94)}
+/* hero: tlmená zemitá plocha + línie hrebeňa */
+:root{ --pin-a:#cfa09c; --pin-b:#e4d0b5; --pin-c:#88a68f; --pin-d:#728f78; }
+.hero{height:clamp(460px,66vh,620px);background:#fff}
+.hero::after{display:none}
+.hero h1{font-weight:300;font-size:clamp(2rem,5.2vw,3.7rem);letter-spacing:.1em;text-shadow:none;line-height:1.15;color:var(--ink)}
+.hero h1 em{color:var(--pin-d)}
+.hero .lead{color:var(--ink-soft);text-shadow:none}
+.range-name,.range-name small{color:var(--ink);text-shadow:none}
+.range-name small{color:var(--pin-d)}
+.car-ctrl .icon-btn{background:var(--surface-2);border-color:var(--line);color:var(--ink)}
+.car-dots button{background:var(--line)}
+.car-dots button.on{background:var(--pin-d)}
+/* „spatial scene“ body hory: jemný parallax pri pohybe myšou */
+#slides [data-depth]{transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.hero-pin{cursor:pointer}
+.hero-pin-lbl{font:700 10px var(--font-body);letter-spacing:.08em;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round}
+.hero-pin:hover .hero-pin-lbl{text-decoration:underline}
+.route-card.point-hit{outline:3px solid var(--pin-c);outline-offset:4px}
+.hut-strip{background:#fff;border-radius:var(--radius-lg);overflow:hidden;margin:20px 0}
+.hut-strip svg{width:100%;height:auto;display:block}
+.hero h1 em{color:var(--glow)}
+.hero .lead{text-shadow:none;letter-spacing:.02em}
+.range-name{font-weight:300;letter-spacing:.2em;text-shadow:none;font-stretch:normal}
+.range-name small{letter-spacing:.28em}
+.car-ctrl .icon-btn{background:transparent;border-radius:2px}
+.car-dots button{height:2px}
+.anno{letter-spacing:.2em;font-weight:600}
+.slide{transition:opacity .6s ease}
+.banner{min-height:clamp(380px,56vh,520px);margin:0}
+.banner h2,.banner p{text-shadow:none} .banner h2{font-size:clamp(1.6rem,4vw,2.8rem)}
+/* karty: plošné, popis pod obrázkom, súradnice ako v lookbooku */
+.card,.panel,.route-card,.stat,.route-item,.post,.empty,.modal{border-radius:4px;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.panel{background:var(--surface)}
+.card .cover{aspect-ratio:4/3}
+.cover-title{padding:34px 16px 12px}
+.cover-title h3{font-size:1.1rem;letter-spacing:.12em}
+.cover-title small{color:rgba(255,255,255,.8);letter-spacing:.2em;font-size:.62rem}
+.coord{display:block;margin-top:5px;font:600 .62rem var(--font-body);letter-spacing:.16em;color:rgba(255,255,255,.7)}
+.type-head{border-radius:3px}
+.featured{box-shadow:none;border-radius:4px}
+.featured h3{font-weight:300;letter-spacing:.1em}
+.stat b{color:var(--brand);font-weight:300}
+.strava b,.sticker .nums b{font-weight:500}
+.post{border-radius:4px}.post-body h3{font-size:1.2rem}
+.modal{border-radius:6px}
+.elev{background:#2d3a2f;border-color:transparent}
+.type-head h3{letter-spacing:.1em}
+.timeline::before{opacity:.5}
+/* mapa: svetlý papier */
+.map-box{background:#ebe7dc;box-shadow:none}
+.map-zoom .icon-btn{background:var(--surface);border-radius:2px}
+.m-label{stroke:#f1eee6}
+.m-city{fill:rgba(31,42,36,.55)}
+#routeBar{background:rgba(31,42,36,.94);box-shadow:none}
+footer{background:var(--forest)}
+legend{color:var(--brand)}
+.result{border-left-color:var(--brand)}
+.bar .fill{background:var(--brand)}
+.avatar{box-shadow:0 0 0 2px var(--bg),0 0 0 3px var(--brand)}
+
+/* v6.1 – opravy čitateľnosti */
+input::placeholder,textarea::placeholder{color:rgba(31,42,36,.45)}
+footer a{color:var(--glow)}
+footer .logo span span{color:var(--glow)}
+footer p{color:rgba(255,255,255,.78)}
+.bar .track{background:rgba(31,42,36,.1)}
+.section-head p{color:rgba(31,42,36,.75)}
+.empty{border-color:var(--line)}
+.icon-btn:hover{background:rgba(31,42,36,.1)}
+.drop{aspect-ratio:auto;min-height:120px;border-color:var(--line);background:rgba(255,255,255,.35)}
+</style>
+
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- ===== HLAVIČKA: logo + stále viditeľné menu ===== -->
+<header id="siteHeader">
+  <div class="wrap head">
+    <button class="logo" data-goto="domov" aria-label="uchýlVhorách — domov">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="var(--brand)"/><path d="M5 23 L13 11 L17 17 L20 13 L27 23Z" fill="#fff"/><path d="M13 11 L15 14 L11 14Z" fill="var(--brand)" opacity=".4"/></svg>
+<span style="color:inherit">uchýl<span>V</span>horách</span>
+    </button>
+    <nav id="mainNav" aria-label="Hlavná navigácia">
+      <button data-goto="domov">Domov</button>
+      <button data-goto="mapa">Kde spať + mapa</button>
+      <button data-goto="trasy">Trasy</button>
+      <button data-goto="moje">Moje trasy</button>
+      <button data-goto="pocasie">Počasie a príprava</button>
+      <button data-goto="pridat" class="cta">Pošli tip na chatu</button>
+      <button data-goto="projekt">O projekte</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+<!-- ═════════ DOMOV ═════════ -->
+<div class="page" id="page-domov">
+  <div class="hero" id="hero" aria-roledescription="karusel" aria-label="Profily pohorí">
+    <div id="slides"></div>
+    <div class="hero-copy">
+      <div class="wrap">
+        <span class="eyebrow">Viacdňové túry po Slovensku</span>
+        <h1>Hory naplánované<br><em>na jednom mieste</em></h1>
+        <span class="bar-accent"></span>
+        <p class="lead">Chaty, útulne, trasy a počasie — prehľadne, s presnosťou starých turistických sprievodcov.</p>
+        <div class="row">
+          <button class="btn glow" data-goto="spanie">Kde spať</button>
+          <button class="btn ghost" data-goto="trasy">Pozrieť trasy</button>
+        </div>
+      </div>
+      <div class="wrap hero-bottom">
+        <div class="range-name" id="rangeName"></div>
+        <div class="car-ctrl">
+          <div class="car-dots" id="carDots"></div>
+          <button class="icon-btn" id="carPrev" aria-label="Predchádzajúce pohorie">‹</button>
+          <button class="icon-btn" id="carPause" aria-label="Pozastaviť">❚❚</button>
+          <button class="icon-btn" id="carNext" aria-label="Ďalšie pohorie">›</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="topo">
+    <div class="wrap">
+      <div class="section-head split">
+        <div><span class="eyebrow">Inšpirácia</span><h2>Overené trasy</h2>
+          <p>Hotové viacdňové návrhy — vyber si podľa schopností, nie ambícií.</p></div>
+        <button class="btn ghost" data-goto="trasy">Všetky trasy →</button>
+      </div>
+      <div class="strip" id="homeRoutes"></div>
+    </div>
+  </section>
+
+  <section class="topo">
+    <div class="wrap">
+      <div class="section-head"><span class="eyebrow">Naprieč trasami</span><h2>Chaty a útulne</h2>
+        <p>Klikni na chatu pre detail — rovnaký jemný pohyb ako pri pohoriach.</p></div>
+      <div class="hut-strip" id="hutStrip"></div>
+    </div>
+  </section>
+
+  <!-- veľký obrazový banner (ilustrácia; neskôr sem patrí reálna fotka) -->
+  <section class="banner" id="banner">
+    <div class="wrap">
+      <span class="eyebrow">Prvá noc</span>
+      <h2>Prvý nocľah vyrieš vopred</h2>
+      <span class="bar-accent"></span>
+      <p>Na chatách sa miesta v sezóne míňajú rýchlo a na útulni nie je miesto garantované. Vyber si nocľah podľa typu, náročnosti a toho, či je otvorený.</p>
+      <button class="link" data-goto="spanie">Vybrať nocľah →</button>
+    </div>
+    <span class="caption">Ilustrácia — ukážka. Sem patrí vaša najlepšia fotka.</span>
+  </section>
+
+</div>
+
+<!-- ═════════ KDE SPAŤ ═════════ -->
+<div class="page" id="page-spanie">
+  <section class="topo">
+    <div class="wrap">
+      <div class="section-head"><span class="eyebrow">Nocľahy podľa typu</span><h2>Kde spať</h2>
+        <p>Každý typ nocľahu má svoju farbu — rovnakú v zozname aj na mape.</p></div>
+      <div id="typeGroups"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ═════════ TRASY (prezentácia) ═════════ -->
+<div class="page" id="page-trasy">
+  <section class="topo">
+    <div class="wrap">
+      <div class="section-head"><span class="eyebrow">Trasy</span><h2>Viacdňové trasy</h2>
+        <p>Overené návrhy s etapami po dňoch, výškovým profilom a nocľahmi. Ulož si ich medzi Moje trasy a uprav podľa seba.</p></div>
+      <div id="featuredRoute"></div>
+      <div class="filters">
+        <label class="f-group"><span class="f-label">Pohorie</span><select id="routeFilterRange"></select></label>
+        <label class="f-group"><span class="f-label">Náročnosť</span>
+          <select id="routeFilterDiff"><option value="">Všetky</option><option value="1">Ľahká</option><option value="2">Stredná</option><option value="3">Náročná</option></select></label>
+        <label class="f-group"><span class="f-label">Počet nocí</span>
+          <select id="routeFilterNights"><option value="">Všetky</option><option value="1">1 noc</option><option value="2">2 noci</option><option value="3">3+ noci</option></select></label>
+        <label class="f-group"><span class="f-label">Dĺžka do <b id="routeKmValue">80 km</b></span>
+          <input id="routeFilterKm" type="range" min="5" max="80" step="5" value="80"></label>
+        <div class="equip" style="align-self:end">
+          <label><input type="checkbox" id="routeFilterMhd"> Dostupné busom/MHD</label>
+          <label><input type="checkbox" id="routeFilterHreben"> Hrebeňovka</label>
+        </div>
+        <button class="btn small ghost" type="button" onclick="resetRouteFilters()">Zrušiť filtre</button>
+      </div>
+      <div class="chips" id="routeChips" style="margin-bottom:18px"></div>
+      <div class="grid" id="routeGrid"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ═════════ MAPA ═════════ -->
+<div class="page" id="page-mapa">
+  <section>
+    <div class="wrap">
+      <div class="section-head"><span class="eyebrow">Plánovanie</span><h2>Mapa</h2>
+        <p>Klikni na miesto a pridaj ho do aktívnej trasy. Spoje sa kreslia vzdušnou čiarou; skutočný chodník, dĺžku a prevýšenie ti ukáže Mapy.cz.</p></div>
+      <div class="chips" id="mapPresets" style="margin-bottom:12px"></div>
+      <div class="map-layout">
+        <div>
+          <div class="map-box">
+            <svg id="map" role="img" aria-label="Schematická mapa Slovenska s miestami na spanie"></svg>
+            <div class="map-zoom">
+              <button class="icon-btn" id="zoomIn" aria-label="Priblížiť">+</button>
+              <button class="icon-btn" id="zoomOut" aria-label="Oddialiť">−</button>
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;font-size:.85rem" id="mapLegend"></div>
+          <p class="muted" style="font-size:.82rem">Schematická mapa, polohy sú približné — ukážka. Ťahaním posúvaš, kolieskom alebo +/− približuješ.</p>
+        </div>
+        <div style="display:grid;gap:16px;align-content:start">
+          <div class="panel" id="mapSelected"></div>
+          <div class="panel" id="mapRoute"></div>
+        </div>
+      </div>
+      <div class="filterbar inline">
+        <div class="wrap" style="padding:0">
+          <div class="chips" id="typeChips" role="group" aria-label="Typ miesta"></div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn small ghost" id="filterToggle" aria-expanded="false">⚙ Ďalšie filtre</button>
+            <button class="btn small ghost" id="filterReset">Zrušiť filtre</button>
+            <span class="muted" id="resultCount"></span>
+          </div>
+          <div class="filter-panel" id="filterPanel">
+            <label>Pohorie<select id="fRange"></select></label>
+            <label>Náročnosť<select id="fDiff"><option value="">Všetky</option><option value="1">Ľahká</option><option value="2">Stredná</option><option value="3">Náročná</option></select></label>
+            <label>Riziko<select id="fRisk"><option value="">Všetky</option><option value="nízke">Nízke</option><option value="stredné">Stredné</option><option value="vysoké">Vysoké</option></select></label>
+            <label>Očakávané počasie<select id="fWeather"><option value="">Stabilné (všetko)</option><option value="zle">Zhoršené (len bezpečnejšie)</option></select></label>
+            <label>Časť roka<select id="fSeason"><option value="">Celý rok</option><option value="jar">Jar</option><option value="leto">Leto</option><option value="jeseň">Jeseň</option><option value="zima">Zima</option></select></label>
+            <div class="equip" role="group" aria-label="Vybavenie a dostupnosť">
+              <label><input type="checkbox" id="fMhd"> MHD do 10 km</label>
+              <label><input type="checkbox" value="jedlo" class="fEquip"> Kuchyňa / jedlo</label>
+              <label><input type="checkbox" value="voda" class="fEquip"> Pitná voda</label>
+              <label><input type="checkbox" value="kachle" class="fEquip"> Kachle</label>
+              <label><input type="checkbox" value="rezervacia" class="fEquip"> Rezervácia</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:18px">
+        <div class="section-head" style="margin-bottom:12px"><span class="eyebrow">Nocľahy</span><h2>Pod mapou</h2>
+          <p>Krátky zoznam výberu podľa typu a dostupnosti. Už na úvodnej stránke je mapový pohľad a plánovanie, samotné nocľahy sú pod mapou.</p></div>
+        <div class="grid" id="mapPlacesList"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ═════════ MOJE TRASY ═════════ -->
+<div class="page" id="page-moje">
+  <section>
+    <div class="wrap">
+      <div class="section-head"><span class="eyebrow">Tvoj plán</span><h2>Moje trasy</h2>
+        <p>Ukladá sa automaticky v tomto prehliadači — rozpracovaný plán ti nezmizne, keď ho prerušíš.</p></div>
+      <div class="my-layout">
+        <div>
+          <button class="btn" id="newRoute" style="width:100%;margin-bottom:12px">+ Nová trasa</button>
+          <div id="routeItems"></div>
+        </div>
+        <div class="panel" id="routeEditor"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ═════════ POČASIE A PRÍPRAVA ═════════ -->
+<div class="page" id="page-pocasie">
+  <section class="topo">
+    <div class="wrap">
+      <div class="section-head"><span class="eyebrow">Počasie</span><h2>Sleduj viac zdrojov</h2><p>Jeden zdroj nestačí. Sleduj predpoveď 2–3 dni vopred a porovnávaj modely.</p></div>
+      <div class="two">
+        <div class="panel">
+          <h3>Odkiaľ brať predpoveď</h3>
+          <div class="row" style="margin:12px 0">
+            <a class="btn" href="https://www.yr.no" target="_blank" rel="noopener">Yr.no ↗</a>
+            <a class="btn" href="https://www.meteoblue.com" target="_blank" rel="noopener">Meteoblue ↗</a>
+          </div>
+          <p class="muted">Vyhľadaj konkrétny vrchol alebo chatu, nie najbližšie mesto — v horách býva iné počasie ako v doline.</p>
+        </div>
+        <div class="panel">
+          <h3>Ako na to</h3>
+          <ul>
+            <li><b>3 dni vopred:</b> prvý pohľad, zisti trend.</li>
+            <li><b>2 dni vopred:</b> porovnaj Yr.no a Meteoblue. Ak sa rozchádzajú, počítaj s horším.</li>
+            <li><b>Večer pred túrou:</b> búrky, vietor na hrebeni, teploty vo výške.</li>
+            <li>V lete hrozia popoludňajšie búrky: na hrebeni buď ráno, dole včas.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section>
+    <div class="wrap">
+      <div class="section-head"><span class="eyebrow">Pripravenosť</span><h2>Poctivo pred cestou</h2><p>Väčšine úrazov sa dá predísť poctivou prípravou.</p></div>
+      <div class="two">
+        <div class="panel quiz" id="quiz">
+          <h3>Poctivý test kondície</h3>
+          <p class="muted">Zaškrtni len to, čo naozaj platí.</p>
+          <label><input type="checkbox"> Za posledný mesiac som zvládol/zvládla túru s prevýšením aspoň 1000 m.</label>
+          <label><input type="checkbox"> Vydržím chodiť 6+ hodín s plným batohom.</label>
+          <label><input type="checkbox"> Nemám problém s výškami a exponovaným terénom (reťaze).</label>
+          <label><input type="checkbox"> Viem sa orientovať v mape a odhadnúť čas trasy.</label>
+          <label><input type="checkbox"> Športujem pravidelne (aspoň 2× týždenne).</label>
+          <div class="result" id="quizResult" aria-live="polite"></div>
+        </div>
+        <div class="panel">
+          <h3>Výbava, jedlo, voda</h3>
+          <ul>
+            <li>Pevná obuv, vrstvy oblečenia, bunda proti dažďu a vetru, čiapka aj v lete.</li>
+            <li>Čelovka, lekárnička, nabitý mobil + powerbanka, offline mapa.</li>
+            <li>Voda: cca <b>1,5 l</b> na deň + rezerva, pri útulni nemusí byť prameň.</li>
+            <li>Jedlo: sušené ovocie, orechy, niečo slané, teplé jedlo na večer.</li>
+            <li>Na útulňu a pod širák: spacák, karimatka, vlastné jedlo, odpad si odnes.</li>
+          </ul>
+          <div class="note"><b>Prvé ubytovanie vyrieš vopred.</b> Na chatách sa miesta v sezóne míňajú rýchlo; na útulni nie je miesto garantované.</div>
+        </div>
+        <div class="panel">
+          <h3>Zima, lavíny a medvede</h3>
+          <ul>
+            <li>V TANAP-e sú vysokohorské chodníky mimo chát uzavreté od 1. 11. do 15. 6. — aktuálne výnimky si over.</li>
+            <li>Pred každou zimnou túrou skontroluj lavínovú predpoveď na <a href="https://www.laviny.sk" target="_blank" rel="noopener">laviny.sk</a>.</li>
+            <li>V horskom teréne sleduj aj oficiálne mapy a aktuality ochrany prírody — napr. <a href="https://www.minzp.sk/" target="_blank" rel="noopener">Ministerstvo životného prostredia SR</a>.</li>
+            <li>Ak uvidíš medveďa, nepřibližuj sa, neodchádzaj do zúžených priestranstiev, nechod do zalesnených koryt bez výhľadu a okamžite zvoľ pokojný ústup. Nevyvolávaj zviera a nenechávaj deti rozbehnuté.</li>
+            <li>V zime sa skracuje deň — plánuj kratšie úseky.</li>
+          </ul>
+          <div class="note danger">Ak si nie si istý/á, otoč sa. Hora počká.</div>
+        </div>
+        <div class="panel">
+          <h3>Poistenie do hôr</h3>
+          <ul>
+            <li>Poistite sa aj na horskú turistiku, nie len na cestu do hôr — prípadné záchranné zásahy a zdravotné náklady robiaca rozdiel.</li>
+            <li>Skontrolujte, či je poistenie platné aj pre výškový terén, lavínové riziko a záchranné zásahy v horách.</li>
+            <li>V prípade náhodného úrazu je rýchlejší a jednoduchší kontakt so záchranou cez 112 alebo 18 300. Nechaj niekomu vedieť trasu a čas návratu.</li>
+          </ul>
+          <div class="note ok">Dobrý plán: pred túrou over predpoveď, povolenia, územné pravidlá a poistenie.</div>
+        </div>
+        <div class="panel">
+          <h3>V núdzi</h3>
+          <div class="row" style="margin:10px 0">
+            <a class="btn" href="tel:18300">📞 18 300 (HZS)</a>
+            <a class="btn ghost" href="tel:112">📞 112</a>
+          </div>
+          <p class="muted">Pred túrou nechaj niekomu doma plán trasy a čas návratu.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ═════════ PRIDAŤ CHATU ═════════ -->
+<div class="page" id="page-pridat">
+  <section class="topo">
+    <div class="wrap">
+      <div class="section-head"><span class="eyebrow">Tip pre tím</span><h2>Pošli nám info o chate</h2>
+        <p>Vyplň, čo vieš. Údaje nám príde ako správa, my ich overíme a až potom miesto pridáme na web. Neisté políčka nechaj prázdne.</p></div>
+      <div class="tabs chips" role="tablist">
+        <button class="chip" role="tab" data-tab="add" aria-pressed="true">Tip na novú chatu</button>
+        <button class="chip" role="tab" data-tab="fix" aria-pressed="false">Oprava údajov</button>
+      </div>
+
+      <!-- Nové miesto -->
+      <div id="tab-add">
+        <form class="panel" id="addForm">
+          <fieldset><legend>1 · Základ</legend>
+            <div class="form-grid">
+              <label class="field full">Názov *<input id="aNazov" required maxlength="80" placeholder="napr. Chata pod Chlebom"></label>
+              <label class="field">Typ *<select id="aTyp" required></select></label>
+              <label class="field">Pohorie *<select id="aPohorie" required></select></label>
+              <label class="field">Nadmorská výška (m)<input id="aVyska" inputmode="numeric" placeholder="napr. 1420"></label>
+              <label class="field">GPS súradnice *<input id="aGps" required placeholder="49.1920, 20.1830">
+                <small>V Mapy.cz klikni pravým tlačidlom na miesto → skopíruj súradnice.</small></label>
+              <label class="field full">Popis<textarea id="aPopis" maxlength="400" placeholder="Pár viet: kde to je, čím je miesto zvláštne, na čo si dať pozor."></textarea></label>
+            </div>
+          </fieldset>
+          <fieldset><legend>2 · Dôležité info</legend>
+            <div class="form-grid">
+              <label class="field">Kuchyňa<input id="aKuchyna" placeholder="napr. teplá kuchyňa do 20:00 / nie, vlastný varič"></label>
+              <label class="field">Cenník<input id="aCennik" placeholder="napr. nocľah od 25 €"></label>
+              <label class="field">Otvorené / zatvorené<input id="aOtvorene" placeholder="napr. celoročne / jún – október"></label>
+              <label class="field">Počet miest<input id="aMiest" placeholder="napr. 24 postelí"></label>
+              <label class="field">Rezervácia<input id="aRezervacia" placeholder="napr. áno, cez web / nie"></label>
+              <label class="field">Web<input id="aWeb" type="url" placeholder="https://..."></label>
+              <label class="field">Voda<input id="aVoda" placeholder="napr. prameň 5 min pod útulňou"></label>
+              <label class="field">Kachle<input id="aKachle" placeholder="napr. áno, drevo treba doniesť"></label>
+            </div>
+          </fieldset>
+          <fieldset><legend>3 · Pre filtre</legend>
+            <div class="form-grid">
+              <label class="field">Náročnosť prístupu<select id="aNarocnost"><option value="1">Ľahká</option><option value="2" selected>Stredná</option><option value="3">Náročná</option></select></label>
+              <label class="field">Riziko<select id="aRiziko"><option>nízke</option><option selected>stredné</option><option>vysoké</option></select></label>
+              <div class="field full">Odporúčané obdobie
+                <div class="checks" id="aObdobie">
+                  <label><input type="checkbox" value="jar"> jar</label><label><input type="checkbox" value="leto" checked> leto</label>
+                  <label><input type="checkbox" value="jeseň" checked> jeseň</label><label><input type="checkbox" value="zima"> zima</label></div></div>
+              <div class="field full">Isto overené vybavenie
+                <div class="checks" id="aOverene">
+                  <label><input type="checkbox" value="jedlo"> jedlo</label><label><input type="checkbox" value="voda"> pitná voda</label>
+                  <label><input type="checkbox" value="kachle"> kachle</label><label><input type="checkbox" value="rezervacia"> rezervácia</label></div></div>
+              <label class="field full" style="display:flex;gap:8px;align-items:center;font-weight:500"><input type="checkbox" id="aZle" style="width:auto;min-height:auto"> Miesto je bezpečne dostupné aj pri horšom počasí</label>
+            </div>
+          </fieldset>
+          <label class="field">Tvoj kontakt (e-mail) *<input id="aMail" type="email" required placeholder="meno@domena.sk"></label>
+          <div class="row"><button class="btn" type="submit">Pripraviť správu</button><span class="muted" style="font-size:.88rem">Na webe sa miesto objaví až po overení naším tímom.</span></div>
+        </form>
+        <div class="panel hidden" id="addResult" style="margin-top:18px">
+          <h3>Správa je pripravená ✓</h3>
+          <p class="muted" id="addNote"></p>
+          <pre class="code" id="addCode"></pre>
+          <div class="row"><a class="btn small" id="sendMail" href="#">Odoslať e-mailom</a><button class="btn small ghost" id="copyCode">Kopírovať správu</button><button class="btn small ghost" id="addAnother">Poslať ďalšiu</button></div>
+        </div>
+      </div>
+
+      <!-- Oprava existujúceho -->
+      <div id="tab-fix" class="hidden">
+        <form class="panel" id="fixForm" style="max-width:680px">
+          <label class="field">Miesto<select id="fxPlace" required></select></label>
+          <label class="field">Čo upravujem<select id="fxField">
+            <option>Popis</option><option>Kuchyňa</option><option>Cenník</option><option>Otvorené / zatvorené</option><option>Počet miest</option>
+            <option>Web</option><option>Rezervácia</option><option>Voda</option><option>Kachle</option><option>Fotky</option><option>Iné</option></select></label>
+          <label class="field">Správna informácia<textarea id="fxText" required maxlength="800"></textarea></label>
+          <label class="field">Kontakt (e-mail)<input type="email" id="fxMail" required placeholder="meno@domena.sk"></label>
+          <button class="btn" type="submit">Pripraviť správu</button>
+          <div class="form-msg hidden" id="fixMsg" role="status"></div>
+        </form>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ═════════ O PROJEKTE ═════════ -->
+<div class="page" id="page-projekt">
+  <section class="topo">
+    <div class="wrap">
+      <div class="section-head"><span class="eyebrow">O projekte</span><h2>Prečo uchýlVhorách</h2>
+        <p>Spájame ubytovanie, trasy, počasie a skúsenosti na jednom mieste — pre mladých ľudí z mesta, ktorí chcú do hôr, ale nemajú sa koho opýtať.</p></div>
+      <div class="stats" style="margin-bottom:20px">
+        <div class="stat"><b>1</b>miesto na plán, nocľah, mapu a fotky</div>
+        <div class="stat"><b>4</b>základné kroky: trasa, nocľah, počasie, zážitok</div>
+        <div class="stat"><b>24/7</b>k dispozícii v prehliadači bez nových účtov</div>
+        <div class="stat"><b>100 %</b>pripravené na zdieľanie skúseností z terénu</div>
+      </div>
+      <div class="two">
+        <div class="panel"><h3>Čo sme vytvorili</h3>
+          <ul>
+            <li>Prehľadnú mapu s nocľahmi, trasy a miestami, ktoré sú rýchlo dostupné.</li>
+            <li>Plánovač trás, kde sa ukazuje odhad vzdialenosti v km a čase v hodinách.</li>
+            <li>Priestranný profil miesta s fotkami, polohou a základnými informáciami.</li>
+            <li>Komunitu zážitkov, kde si môžu ľudia nahrávať fotky a komentáre podobne ako na sociálnych sieťach.</li>
+          </ul>
+        </div>
+        <div class="panel"><h3>Prečo tento projekt vznikol</h3>
+          <ul>
+            <li>Najväčší problém nie je samotná trasa, ale <b>kedy a kde si zabezpečiť nocľah</b>.</li>
+            <li>Turista dnes hľadá v 4–5 rôznych zdrojoch: mapa, chaty, počasie a tipy od kamarátov.</li>
+            <li>Chceme mať všetko na jednom mieste: od mapy po konkrétnu nocľahovú spätnú väzbu.</li>
+          </ul>
+        </div>
+        <div class="panel"><h3>Čo riešime</h3><ul>
+          <li>Prehľadné plánovanie bez chaosu a príliš veľkého textu na stránke.</li><li>Polohové odkazy do Mapy.cz s kontrolovanými súradnicami.</li>
+          <li>Uloženie trás a rýchle prepínanie medzi mapou, nocľahom a zážitkami.</li></ul></div>
+        <div class="panel"><h3>Hodnota pre používateľa</h3><ul>
+          <li>Rýchlejšie rozhodovanie o trase a nocľahu.</li><li>Jedno miesto pre plánovanie i spätnú väzbu od komunity.</li>
+          <li>Hotový základ pre ďalší rozvoj s viac fotkami, recenziami a plánovačom.</li></ul></div>
+      </div>
+    </div>
+  </section>
+</div>
+</main>
+
+<footer>
+  <div id="footRidge"></div>
+  <div class="wrap">
+    <button class="logo" data-goto="domov"><span style="color:inherit">uchýl<span>V</span>horách</span></button>
+    <nav id="footNav" aria-label="Pätička"></nav>
+    <p style="margin:0">Prototyp MVP. Údaje sú ukážkové; pred túrou si všetko over u prevádzkovateľov a na <a href="https://mapy.cz" target="_blank" rel="noopener">Mapy.cz</a>. V núdzi volaj <a href="tel:18300">18 300</a>.</p>
+  </div>
+</footer>
+
+<!-- detail miesta / trasy -->
+<div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal" id="modal"><button class="icon-btn modal-close" id="modalClose" aria-label="Zavrieť">✕</button><div id="modalContent"></div></div>
+</div>
+
+<!-- lišta aktívnej trasy -->
+<aside id="routeBar" aria-label="Aktívna trasa">
+  <span style="font-size:1.4rem" aria-hidden="true">🗺</span>
+  <div class="info"><small>Aktívna trasa</small><b id="barName">—</b></div>
+  <button class="btn small on-dark" data-goto="mapa">Mapa</button>
+  <button class="btn small" data-goto="moje">Upraviť</button>
+</aside>
+<div id="toast" role="status" aria-live="polite"></div>
+
+
+<script id="data">
+/* ╔════════════════════════════════════════════════════════════════╗
+   ║  2) DÁTA — tu sa pridávajú chaty, útulne a trasy                ║
+   ╚════════════════════════════════════════════════════════════════╝
+
+   PRAVIDLO: ak údaj nevieš, nechaj ho prázdny ''  →  web zobrazí „over si“.
+             Nikdy si údaje nevymýšľaj.
+
+   ── ŠABLÓNA NOVÉHO MIESTA (skopíruj, vlož na koniec zoznamu MIESTA, vyplň) ──
+   {
+     id:        'kratky-kod',          // unikátny, malé písmená, bez diakritiky a medzier
+     nazov:     'Názov chaty',
+     typ:       'chata',               // chata | utulna | izba | sirak | stan
+     pohorie:   'Malá Fatra',          // presne ako v zozname POHORIA nižšie
+     vyska:     1420,                  // m n. m. ako číslo; ak nevieš presne: 'cca 1420 (over si)'
+     gps:       [49.192, 20.183],      // [šírka, dĺžka] — z Mapy.cz (pravý klik → súradnice)
+     popis:     'Pár viet o mieste.',
+
+     kuchyna:   '',                    // napr. 'áno, teplá kuchyňa' / 'nie, vlastný varič'
+     cennik:    '',                    // napr. 'nocľah od 25 €'
+     otvorene:  '',                    // napr. 'celoročne' / 'jún – október'
+     miest:     '',                    // napr. '24 postelí'
+     rezervacia:'',                    // napr. 'áno, cez web'
+     voda:      '',
+     kachle:    '',
+     web:       '',                    // celá adresa https://...
+
+     narocnost: 2,                     // 1 ľahká · 2 stredná · 3 náročná
+     riziko:    'stredné',             // nízke | stredné | vysoké
+     zlePocasie:false,                 // true = bezpečne dostupné aj pri horšom počasí
+     obdobie:   ['leto','jeseň'],      // jar, leto, jeseň, zima
+     overene:   [],                    // ISTO overené vybavenie pre filtre: 'jedlo','voda','kachle','rezervacia'
+     fotky:     []                     // adresy fotiek; prázdne = ilustrácia so štítkom „ukážka“
+   },
+*/
+
+/* Kam prichádzajú tipy na nové chaty a opravy. VYPLŇ pred zverejnením webu.
+   Kým je prázdne, formulár pripraví správu, ktorú si návštevník len skopíruje. */
+const PRIJEM_EMAIL = '';
+
+/* Pohoria (poradie = poradie v menu a na úvodnej animácii) */
+const POHORIA = ['Vysoké Tatry', 'Nízke Tatry', 'Malá Fatra', 'Veľká Fatra'];
+
+/* Typy nocľahu: názov a krátke vysvetlenie (farby sú v DIZAJNE: --chata, --utulna, ...) */
+const TYPY = {
+  chata:  { nazov:'Horská chata', popis:'Obsluhovaná chata s kuchyňou, posteľami a obvykle rezerváciou.' },
+  utulna: { nazov:'Útulňa',       popis:'Jednoduchý prístrešok bez obsluhy. Vlastný spacák a jedlo, miesto nie je garantované.' },
+  izba:   { nazov:'Turistická izba / ubytovanie', popis:'Ubytovanie v doline alebo pri nástupe na trasu — dobrá prvá noc.' },
+  sirak:  { nazov:'Pod širákom (bivak)', popis:'Nocľah bez strechy. V národných parkoch je nocovanie mimo vyhradených miest zakázané — over si pravidlá územia.' },
+  stan:   { nazov:'Stan', popis:'Len tam, kde je táborenie povolené (kempy, vyhradené miesta) — over si pravidlá územia.' }
+};
+
+/* ── MIESTA NA SPANIE ── (ukážkové dáta; neisté údaje sú prázdne alebo s „over si“) */
+const MIESTA = [
+
+  /* ─── Vysoké Tatry ─── */
+  {
+    id:'rysy', nazov:'Chata pod Rysmi', typ:'chata', pohorie:'Vysoké Tatry', vyska:2250, gps:[49.185, 20.083],
+    popis:'Najvyššie položená chata na Slovensku, pod štítom Rysy. Posledný úsek výstupu je zabezpečený reťazami.',
+    kuchyna:'áno, teplá kuchyňa (menu over si)', cennik:'', otvorene:'sezónne, mimo leta zvyčajne zatvorená (over si dátumy)', miest:'',
+    rezervacia:'áno, vopred (over si)', voda:'', kachle:'—', web:'https://www.chatapodrysmi.sk',
+    narocnost:3, riziko:'vysoké', zlePocasie:false, obdobie:['leto'], overene:['jedlo','rezervacia'], fotky:[]
+  },
+  {
+    id:'tery', nazov:'Téryho chata', typ:'chata', pohorie:'Vysoké Tatry', vyska:2015, gps:[49.192, 20.183],
+    popis:'Vysokohorská chata v Malej Studenej doline pri Piatich Spišských plesách.',
+    kuchyna:'áno, teplá kuchyňa (over si)', cennik:'', otvorene:'celoročne (over si)', miest:'',
+    rezervacia:'áno, vopred (over si podmienky)', voda:'', kachle:'—', web:'https://www.terychata.com',
+    narocnost:2, riziko:'stredné', zlePocasie:false, obdobie:['leto','jeseň'], overene:['jedlo','rezervacia'], fotky:[]
+  },
+  {
+    id:'zbojnicka', nazov:'Zbojnícka chata', typ:'chata', pohorie:'Vysoké Tatry', vyska:1960, gps:[49.179, 20.156],
+    popis:'Chata vo Veľkej Studenej doline, dostupná z Hrebienka. S Téryho chatou tvorí klasický prechod cez Priečne sedlo.',
+    kuchyna:'áno (over si)', cennik:'', otvorene:'celoročne (over si)', miest:'',
+    rezervacia:'áno (over si)', voda:'', kachle:'—', web:'https://www.zbojnickachata.sk',
+    narocnost:2, riziko:'stredné', zlePocasie:false, obdobie:['leto','jeseň'], overene:['jedlo','rezervacia'], fotky:[]
+  },
+  {
+    id:'zelene', nazov:'Chata pri Zelenom plese', typ:'chata', pohorie:'Vysoké Tatry', vyska:1551, gps:[49.205, 20.219],
+    popis:'Brnčalova chata pri Zelenom plese pod Lomnickým štítom. Dolinou dostupná aj pre menej skúsených.',
+    kuchyna:'áno (over si)', cennik:'', otvorene:'celoročne (over si)', miest:'',
+    rezervacia:'áno (over si)', voda:'', kachle:'—', web:'https://www.zelenepleso.sk',
+    narocnost:1, riziko:'nízke', zlePocasie:true, obdobie:['jar','leto','jeseň','zima'], overene:['jedlo','rezervacia'], fotky:[]
+  },
+  {
+    id:'bilikova', nazov:'Bilíkova chata', typ:'chata', pohorie:'Vysoké Tatry', vyska:1255, gps:[49.164, 20.225],
+    popis:'Chata pri Hrebienku, kúsok od lanovky. Vhodná na prvú noc v Tatrách.',
+    kuchyna:'áno (over si)', cennik:'', otvorene:'celoročne (over si)', miest:'',
+    rezervacia:'áno (over si)', voda:'', kachle:'—', web:'https://www.bilikovachata.sk',
+    narocnost:1, riziko:'nízke', zlePocasie:true, obdobie:['jar','leto','jeseň','zima'], overene:['jedlo','rezervacia'], fotky:[]
+  },
+
+  /* ─── Nízke Tatry ─── */
+  {
+    id:'kamenna', nazov:'Kamenná chata pod Chopkom', typ:'chata', pohorie:'Nízke Tatry', vyska:'cca 1960 (over si)', gps:[48.942, 19.593],
+    popis:'Chata tesne pod Chopkom na hlavnom hrebeni. Pri zlom počasí je hrebeň veľmi exponovaný vetru.',
+    kuchyna:'áno (over si)', cennik:'', otvorene:'', miest:'',
+    rezervacia:'', voda:'', kachle:'—', web:'',
+    narocnost:1, riziko:'stredné', zlePocasie:false, obdobie:['leto','jeseň','zima'], overene:['jedlo'], fotky:[]
+  },
+  {
+    id:'stefanik', nazov:'Chata M. R. Štefánika', typ:'chata', pohorie:'Nízke Tatry', vyska:1740, gps:[48.932, 19.663],
+    popis:'Chata pod Ďumbierom, prirodzená zastávka pri prechode hrebeňom Nízkych Tatier.',
+    kuchyna:'áno (over si)', cennik:'', otvorene:'celoročne (over si)', miest:'',
+    rezervacia:'áno (over si)', voda:'', kachle:'—', web:'',
+    narocnost:2, riziko:'stredné', zlePocasie:false, obdobie:['leto','jeseň'], overene:['jedlo','rezervacia'], fotky:[]
+  },
+  {
+    id:'durkova', nazov:'Útulňa Ďurková', typ:'utulna', pohorie:'Nízke Tatry', vyska:'cca 1750 (over si)', gps:[48.937, 19.483],
+    popis:'Hrebeňová útulňa medzi Chopkom a Chabencom. Počítaj so spacákom, vlastným jedlom a rezervou vody.',
+    kuchyna:'nie, vlastný varič', cennik:'', otvorene:'', miest:'',
+    rezervacia:'nie, kto prv príde (over si)', voda:'prameň v okolí (over si)', kachle:'', web:'',
+    narocnost:2, riziko:'stredné', zlePocasie:false, obdobie:['leto','jeseň'], overene:[], fotky:[]
+  },
+  {
+    id:'keckou', nazov:'Útulňa pod Kečkou', typ:'utulna', pohorie:'Nízke Tatry', vyska:1123, gps:[48.8555978, 19.2486486],
+    popis:'Obsluhovaná útulňa pri Podkonicach, otvorená celoročne (nonstop). Má oheň/ohnisko a pitnú vodu.',
+    kuchyna:'nie, vlastný varič (over si)', cennik:'platené, suma: over si', otvorene:'celoročne', miest:'',
+    rezervacia:'áno, odporúčaná', voda:'áno', kachle:'—', web:'',
+    narocnost:2, riziko:'stredné', zlePocasie:false, obdobie:['jar','leto','jeseň'], overene:['voda'], fotky:[]
+  },
+
+  /* ─── Malá Fatra ─── */
+  {
+    id:'vratna', nazov:'Chata Vrátna', typ:'izba', pohorie:'Malá Fatra', vyska:'cca 750 (over si)', gps:[49.205, 19.058],
+    popis:'Ubytovanie vo Vrátnej doline. Dobrá prvá noc pred výstupom na hrebeň — zariaď ju vopred.',
+    kuchyna:'áno, reštaurácia (over si)', cennik:'', otvorene:'celoročne (over si)', miest:'',
+    rezervacia:'áno', voda:'áno', kachle:'—', web:'https://www.chatavratna.sk',
+    narocnost:1, riziko:'nízke', zlePocasie:true, obdobie:['jar','leto','jeseň','zima'], overene:['jedlo','voda','rezervacia'], fotky:[]
+  },
+  {
+    id:'grun', nazov:'Chata na Grúni', typ:'chata', pohorie:'Malá Fatra', vyska:'cca 970 (over si)', gps:[49.207, 19.080],
+    popis:'Chata nad Vrátnou dolinou s výhľadom na Veľký Rozsutec. Krátky výstup, vhodná aj pre začiatočníkov.',
+    kuchyna:'áno (over si)', cennik:'', otvorene:'', miest:'',
+    rezervacia:'', voda:'', kachle:'—', web:'',
+    narocnost:1, riziko:'nízke', zlePocasie:true, obdobie:['jar','leto','jeseň','zima'], overene:['jedlo'], fotky:[]
+  },
+  {
+    id:'chlebChata', nazov:'Chata pod Chlebom', typ:'chata', pohorie:'Malá Fatra', vyska:'cca 1420 (over si)', gps:[49.192, 19.043],
+    popis:'Chata na úbočí Chleba, dostupná z Vrátnej doliny (aj kabínkovou lanovkou do Snilovského sedla — prevádzku over si).',
+    kuchyna:'áno (over si)', cennik:'', otvorene:'', miest:'',
+    rezervacia:'', voda:'', kachle:'—', web:'https://www.chatapodchlebom.sk',
+    narocnost:1, riziko:'nízke', zlePocasie:true, obdobie:['jar','leto','jeseň'], overene:['jedlo'], fotky:[]
+  },
+  {
+    id:'chlebUtulna', nazov:'Útulňa pod Chlebom', typ:'utulna', pohorie:'Malá Fatra', vyska:'', gps:[49.190, 19.035],
+    popis:'Jednoduchý nocľah pod hrebeňom Malej Fatry. Vlastný spacák a jedlo nutné.',
+    kuchyna:'nie, vlastný varič', cennik:'', otvorene:'', miest:'',
+    rezervacia:'nie (over si)', voda:'', kachle:'', web:'',
+    narocnost:2, riziko:'stredné', zlePocasie:false, obdobie:['leto','jeseň'], overene:[], fotky:[]
+  },
+  {
+    id:'chataSuchym', nazov:'Chata pod Suchým', typ:'chata', pohorie:'Malá Fatra', vyska:1066, gps:[49.176451, 18.935292],
+    popis:'Chata na svahu vrchu Suchý, v prevádzke od roku 1937. Ubytovanie pre 62 osôb v izbách a 14 v spoločnej izbe, slúži aj ako horská záchranná stanica. Wifi k dispozícii.',
+    kuchyna:'áno (over si)', cennik:'platené, suma: over si', otvorene:'celoročne', miest:'62 lôžok + 14 v spoločnej izbe',
+    rezervacia:'áno, odporúčané (over si)', voda:'áno (over si)', kachle:'—', web:'https://www.chatapodsuchym.eu',
+    narocnost:1, riziko:'nízke', zlePocasie:true, obdobie:['jar','leto','jeseň','zima'], overene:[], fotky:[]
+  },
+
+  /* ─── Veľká Fatra ─── */
+  {
+    id:'borisov', nazov:'Chata pod Borišovom', typ:'chata', pohorie:'Veľká Fatra', vyska:'cca 1320 (over si)', gps:[48.983, 19.133],
+    popis:'Chata v hrebeňovej časti Veľkej Fatry, neďaleko Ploskej.',
+    kuchyna:'áno (over si)', cennik:'', otvorene:'', miest:'',
+    rezervacia:'', voda:'', kachle:'—', web:'https://www.borisov.sk',
+    narocnost:2, riziko:'stredné', zlePocasie:true, obdobie:['jar','leto','jeseň'], overene:[], fotky:[]
+  },
+  {
+    id:'cabanka', nazov:'Útulňa Cabanka', typ:'utulna', pohorie:'Veľká Fatra', vyska:1139, gps:[48.767367, 19.008197],
+    popis:'Jednoduchá útulňa pri Hornom Turčeku, bez obsluhy. Podľa recenzií má kachle, drevo na zakúrenie a prameň priamo pred chatou.',
+    kuchyna:'nie, vlastný varič', cennik:'zadarmo', otvorene:'', miest:'cca 6 lôžok (podľa recenzií, over si)',
+    rezervacia:'nie, kto prv príde', voda:'prameň pred chatou (over si)', kachle:'áno, na drevo (nosíš si/šetríš)', web:'',
+    narocnost:2, riziko:'stredné', zlePocasie:false, obdobie:['jar','leto','jeseň'], overene:[], fotky:[]
+  },
+  {
+    id:'kralovaStudna', nazov:'Horský hotel Kráľova studňa', typ:'chata', pohorie:'Veľká Fatra', vyska:1277, gps:[48.876201, 19.040952],
+    popis:'Celoročný horský hotel pod vrcholom Kráľova studňa (založený 1957, prestavaný 2007). Prístupný po značke Bystrickou dolinou z Dolného Harmanca alebo po magistrále Cesta hrdinov SNP od Malého Šturca. Východisko na hlavný hrebeň (Krížna, Ostredok, Ploská).',
+    kuchyna:'áno, reštaurácia (over si)', cennik:'platené, suma: over si', otvorene:'celoročne', miest:'16 izieb (2–6-lôžkové) + 3 apartmány, alebo 3 turistické izby',
+    rezervacia:'áno, odporúčané vopred (over si)', voda:'áno (over si)', kachle:'—', web:'https://www.kralovastudna.com',
+    narocnost:1, riziko:'nízke', zlePocasie:true, obdobie:['jar','leto','jeseň','zima'], overene:[], fotky:[]
+  },
+  {
+    id:'smrekov', nazov:'Útulňa Smrekov', typ:'utulna', pohorie:'Veľká Fatra', vyska:1375, gps:[48.881635, 19.036628],
+    popis:'Bezplatná útulňa bez obsluhy pri Blatnici, blízko Kráľovej studne (cca 15 min chôdze) — dobrá alternatíva na druhú noc namiesto hotela.',
+    kuchyna:'nie, vlastný varič', cennik:'zadarmo', otvorene:'', miest:'',
+    rezervacia:'nie, kto prv príde (over si)', voda:'', kachle:'', web:'',
+    narocnost:2, riziko:'stredné', zlePocasie:false, obdobie:['leto','jeseň'], overene:[], fotky:[]
+  }
+];
+
+/* ── TRASY ──
+   Iba skutočne prejdené trasy (reálne GPS záznamy z mapy.com, odkazy v upozornení).
+   zastavky: v poradí; ak text sedí s id miesta (napr. 'tery'), je to nocľah, inak bod na trase.
+   profil:   [názov, výška] pre výškový profil (orientačný).
+   dni:      čo sa robí v jednotlivé dni.
+   mhd/hreben: príznaky pre filtre na stránke Trasy. */
+const TRASY = [
+  {
+    id:'certovicaDonovaly', nazov:'Nízke Tatry: Čertovica – Donovaly', pohorie:'Nízke Tatry', narocnost:3, obdobie:['leto','jeseň'],
+    mhd:true, hreben:true, nebezpecne:true,
+    perex:'Dlhý hrebeňový prechod cez Ďumbier a Chopok, s nocľahmi na troch chatách. Oba konce sú na autobusovej trase.',
+    zastavky:['Čertovica','stefanik','Ďumbier','Chopok','durkova','keckou','Donovaly'],
+    profil:[['Čertovica',1232],['Chata gen. M. R. Štefánika',1740],['Ďumbier',2045],['Chopok',2024],['Útulňa Ďurková',1750],['Útulňa pod Kečkou',1123],['Donovaly',950]],
+    dni:['Čertovica → Chata generála M. R. Štefánika (8,1 km / 3:27 h), nocľah.',
+         '→ Ďumbier (3,1 km / 1:25 h) → Chopok (4,4 km / 1:46 h) → Útulňa Ďurková (11,1 km / 3:40 h), nocľah.',
+         '→ Útulňa pod Kečkou (22,8 km / 8:19 h) — najdlhší deň, vyraz skoro ráno.',
+         '→ Donovaly (4,8 km / 1:20 h), koniec.'],
+    upozornenie:'Reálny GPS záznam: mapy.com/s/rerubanuko — časy a km sú odtiaľ. Na hrebeni niet kam sa skryť pred búrkou, 3. deň je veľmi dlhý (22,8 km).'
+  },
+  {
+    id:'sutovoVarin', nazov:'Malá Fatra: Šútovo – Chlieb – Suchý – Varín', pohorie:'Malá Fatra', narocnost:2, obdobie:['jar','leto','jeseň'],
+    mhd:true, hreben:true,
+    perex:'Hrebeňový prechod od Šútovského vodopádu cez dve platené chaty do Varína.',
+    zastavky:['Šútovo','chlebChata','chataSuchym','Varín'],
+    profil:[['Šútovo',430],['Chata pod Chlebom',1420],['Chata pod Suchým',1066],['Varín',360]],
+    dni:['Šútovo (odb. k Šútovskému vodopádu) → Chata pod Chlebom (6,9 km / 3:40 h), nocľah.',
+         '→ Chata pod Suchým (11,1 km / 4:24 h), nocľah.',
+         '→ Varín, Záriečie (7,7 km / 2:26 h), koniec.'],
+    upozornenie:'Reálny GPS záznam: mapy.com/s/becazekupa. Záznam má 2 nocľahy (obe chaty platené, rezervuj vopred) — ak chceš 3 noci, počítaj aj s nocľahom v Šútove pred výstupom.'
+  },
+  {
+    id:'krahuleStareHory', nazov:'Veľká Fatra: Krahule – Cabanka – Smrekov – Staré Hory', pohorie:'Veľká Fatra', narocnost:1, obdobie:['jar','leto','jeseň'],
+    mhd:true,
+    perex:'Pohodový prechod pre začiatočníkov — dve zadarmo útulne, oba konce na autobusovej zastávke.',
+    zastavky:['Krahule','cabanka','smrekov','Staré Hory'],
+    profil:[['Krahule',750],['Útulňa Cabanka',1139],['Útulňa Smrekov',1375],['Staré Hory',482]],
+    dni:['Krahule, Dedičné (bus. zastávka) → Útulňa Cabanka (9,9 km / 3:28 h), nocľah zadarmo.',
+         '→ Útulňa Smrekov (20,2 km / 7:20 h), nocľah zadarmo.',
+         '→ Staré Hory, kaplnka (10,3 km / 3:42 h), koniec.'],
+    upozornenie:'Reálny GPS záznam: mapy.com/s/muzahabuke. Obe útulne sú bez obsluhy — vlastný spacák a jedlo.'
+  },
+  {
+    id:'vratnaVarinDenna', nazov:'Malá Fatra: Kriváne a Pekelník (jednodňovka)', pohorie:'Malá Fatra', narocnost:3, obdobie:['leto','jeseň'],
+    mhd:true, hreben:true, nebezpecne:true,
+    perex:'Náročný jednodňový hrebeňový prechod spod Vrátnej cez oba Kriváne a Pekelník až do Varína.',
+    zastavky:['Chata Vrátna','Snilovské sedlo','Veľký Kriváň','Malý Kriváň','Pekelník','Varín'],
+    profil:[['Chata Vrátna',750],['Snilovské sedlo',1524],['Veľký Kriváň',1709],['Malý Kriváň',1668],['Pekelník',1609],['Varín',360]],
+    dni:['Chata Vrátna → Snilovské sedlo (2,8 km / 2:13 h) → Veľký Kriváň (1,3 km / 45 min) → Malý Kriváň (3,9 km / 1:39 h) → Pekelník (2,8 km / 1:11 h) → Varín (15,4 km / 5:29 h). Spolu 26,2 km / 11:16 h — jeden dlhý deň, bez nocľahu.'],
+    upozornenie:'Reálny GPS záznam: mapy.com/s/hacezebezo (mapy.cz hlásilo pri tejto trase aj „obmedzenia na trase“ — over si aktuálny stav pred výstupom). Exponovaný skalnatý hrebeň, len za stabilného počasia.'
+  }
+];
+
+/* Profily pohorí pre úvodnú animáciu.
+   nalada: noc | sumrak | hmla | zlata;  objekt: stan | chata | utulna | izba | sirak;  body: [poloha 0–1000, výška m, názov vrcholu?] */
+const PROFILY = {
+  'Vysoké Tatry': { nalada:'noc',    objekt:'stan',
+    body:[[0,900],[90,1400],[170,1900],[230,2501,'Rysy'],[290,2100],[350,2400],[420,2655,'Gerlachovský štít'],[480,2200],[540,2450],[610,2634,'Lomnický štít'],[680,2100],[760,2300],[850,1600],[1000,900]] },
+  'Nízke Tatry':  { nalada:'zlata',  objekt:'sirak',
+    body:[[0,800],[120,1300],[230,1700],[330,2024,'Chopok'],[400,1850],[470,2043,'Ďumbier'],[560,1700],[660,1500],[780,1946,'Kráľova hoľa'],[880,1300],[1000,800]] },
+  'Malá Fatra':   { nalada:'hmla',   objekt:'chata',
+    body:[[0,700],[110,1100],[210,1500],[300,1646,'Chleb'],[360,1550],[430,1709,'Veľký Kriváň'],[520,1450],[620,1610,'Veľký Rozsutec'],[720,1300],[850,1000],[1000,700]] },
+  'Veľká Fatra':  { nalada:'sumrak', objekt:'stan',
+    body:[[0,700],[150,1200],[270,1574,'Krížna'],[380,1450],[480,1592,'Ostredok'],[580,1450],[680,1532,'Ploská'],[760,1510,'Borišov'],[880,1100],[1000,700]] }
+};
+
+/* ── „Spatial scene“ — body na Domove (prehľad vrcholov na kliknutie) ──
+   Pohoria pre tento karusel (zatiaľ bez Vysokých Tatier).
+   vyska:null = výška zatiaľ neoverená, nezobrazí sa. */
+const HERO_RANGES = ['Nízke Tatry', 'Malá Fatra', 'Veľká Fatra'];
+const HERO_POINTS = {
+  'Nízke Tatry': [
+    { name:'Čertovica',         gps:[48.9055069, 19.7359058], vyska:1232 },
+    { name:'Štefánikova chata', gps:[48.932,     19.663],     vyska:1740 },
+    { name:'Ďumbier',           gps:[48.9363994, 19.6402664], vyska:2045 },
+    { name:'Chopok',            gps:[48.943,     19.589],     vyska:2024 },
+    { name:'Kozí chrbát',       gps:[48.9706408, 19.4737044], vyska:null }
+  ],
+  'Malá Fatra': [
+    { name:'Malý Kriváň', gps:[49.1811222, 18.9930175], vyska:1668 },
+    { name:'Pekelník',    gps:[49.1905886, 19.0183175], vyska:1609 }
+  ],
+  'Veľká Fatra': [
+    { name:'Kordícky štít', gps:[48.7749481, 19.0112800], vyska:1181 }
+  ]
+};
+/* chaty/útulne naprieč trasami — id z MIESTA, v poradí na pásu */
+const HERO_HUTY = ['chlebChata', 'chataSuchym', 'cabanka', 'kralovaStudna', 'smrekov'];
+const PIN_COLORS = ['#cfa09c', '#e4d0b5', '#88a68f', '#728f78'];
+
+const VYZVY = [
+  'Uvar si čaj z vody, ktorú si sám/sama vyniesol/vyniesla',
+  'Zapíš do vrcholovej knihy štvorveršie',
+  'Odfoť najdivnejší tvar oblaku dňa',
+  'Odnes z hôr o jeden odpadok viac, než si priniesol/priniesla',
+  'Nauč niekoho na chate novú kartovú hru',
+  'Zachyť východ slnka bez filtra'
+];
+/* ── BODY NA TRASÁCH (nie nocľahy) ──
+   Približná poloha a výška pre kreslenie krivky trasy a profilu. Polohy over si. */
+const BODY = {
+  'Hrebienok':         { gps:[49.157, 20.226], vyska:1285, typ:'mesto' },
+  'Priečne sedlo':     { gps:[49.186, 20.170], vyska:2352, typ:'sedlo' },
+  'Štrbské Pleso':     { gps:[49.120, 20.062], vyska:1350, typ:'mesto' },
+  'Popradské pleso':   { gps:[49.154, 20.080], vyska:1494, typ:'pleso' },
+  'Rysy':              { gps:[49.179, 20.088], vyska:2501, typ:'kopec' },
+  'Skalnaté pleso':    { gps:[49.190, 20.234], vyska:1751, typ:'pleso' },
+  'Tatranská Lomnica': { gps:[49.165, 20.280], vyska:850,  typ:'mesto' },
+  'Donovaly':          { gps:[48.881, 19.223], vyska:950,  typ:'mesto' },
+  'Čertovica':         { gps:[48.9055069, 19.7359058], vyska:1232, typ:'sedlo' },
+  'Ďumbier':           { gps:[48.9363994, 19.6402664], vyska:2045, typ:'kopec' },
+  'Chopok':            { gps:[48.943, 19.589], vyska:2024, typ:'kopec' },
+  'Trangoška':         { gps:[48.918, 19.662], vyska:1120, typ:'mesto' },
+  'Snilovské sedlo':   { gps:[49.193, 19.048], vyska:1524, typ:'sedlo' },
+  'Veľký Kriváň':      { gps:[49.189, 19.030], vyska:1709, typ:'kopec' },
+  'Malý Kriváň':       { gps:[49.181122, 18.993018], vyska:1668, typ:'kopec' },
+  'Pekelník':          { gps:[49.190589, 19.018318], vyska:1609, typ:'kopec' },
+  'Vrátna':            { gps:[49.205, 19.058], vyska:750,  typ:'mesto' },
+  'Chata Vrátna':      { gps:[49.205, 19.058], vyska:750,  typ:'chata' },
+  'Šútovo':            { gps:[49.15, 19.0833333], vyska:'cca 430 (over si)', typ:'mesto' },
+  'Varín':             { gps:[49.2013689, 18.8698897], vyska:360, typ:'mesto' },
+  'Krahule':           { gps:[48.7373542, 18.9307708], vyska:'cca 750 (over si)', typ:'mesto' },
+  'Staré Hory':        { gps:[48.8385542, 19.1147881], vyska:482, typ:'mesto' }
+};
+
+const BOD_TYPY = {
+  chata:  { ico:'⌂', nazov:'Chata' },
+  utulna: { ico:'▣', nazov:'Útulňa' },
+  izba:   { ico:'◫', nazov:'Ubytovanie' },
+  sirak:  { ico:'✦', nazov:'Bivak' },
+  stan:   { ico:'△', nazov:'Stan' },
+  kopec:  { ico:'▲', nazov:'Vrchol' },
+  sedlo:  { ico:'✧', nazov:'Sedlo' },
+  pleso:  { ico:'◌', nazov:'Pleso' },
+  mesto:  { ico:'▭', nazov:'Mesto / obec / nástup' }
+};
+
+/* ── UKÁŽKOVÉ PRÍSPEVKY v Zážitkoch ── (vymyslené profily, označené „ukážka“)
+   trasa = id z TRASY; fotka = adresa obrázka alebo '' (zobrazí sa ilustrácia) */
+const UKAZKOVE_PRISPEVKY = [
+  { id:'u1', autor:'Nina', nazov:'Čertovica – Donovaly, tretí deň bol peklo', trasa:'certovicaDonovaly', fotka:'', cas:'4 dni', datum:'2026-09-14',
+    text:'Úsek od Ďurkovej po Kečkovú je 22 km — zlanili sme sa dole do tmy. Inak nádherný hrebeň, len si na ten deň vyhraď viac času.',
+    stav:'Suchá, bez problémov', vyzva:0, lajky:24, komentare:[['Tomáš','Vďaka za varovanie, radšej si to rozdelím na dva dni.'],['Nina','Presne, my sme to podcenili.']] },
+  { id:'u2', autor:'Maroš', nazov:'Šútovský vodopád a dve chaty', trasa:'sutovoVarin', fotka:'', cas:'3 dni', datum:'2026-09-02',
+    text:'Pod Chlebom aj pod Suchým sme mali miesto rezervované vopred — oplatilo sa, obe chaty boli plné.',
+    stav:'Suchá, bez problémov', vyzva:3, lajky:31, komentare:[['Ema','Vďaka za tip s rezerváciou!']] },
+  { id:'u3', autor:'Tomáš', nazov:'Krahule – Cabanka – Smrekov v hmle', trasa:'krahuleStareHory', fotka:'', cas:'3 dni', datum:'2026-08-21',
+    text:'Celé ráno hmla, pri Smrekove sa to roztrhlo a bolo vidieť až na Kriváň. Obe útulne boli prázdne, mali sme ich pre seba.',
+    stav:'Blato / mokro', vyzva:2, lajky:17, komentare:[] },
+  { id:'u4', autor:'Ema', nazov:'Oba Kriváne a Pekelník za jeden deň', trasa:'vratnaVarinDenna', fotka:'', cas:'1 deň', datum:'2026-08-09',
+    text:'Dlhý deň, ale stálo to za to — hrebeň bol celý pre nás. Posledný zostup do Varína sme dobehli už za tmy.',
+    stav:'Suchá, bez problémov', vyzva:4, lajky:9, komentare:[] }
+];
+</script>
+
+
+<script>
+/* ╔════════════════════════════════════════════════════════════════╗
+   ║  3) LOGIKA — bežne netreba upravovať                            ║
+   ╚════════════════════════════════════════════════════════════════╝ */
+
+/* ===== Pomocné funkcie ===== */
+const $  = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const OVER = '<span class="verify">over si</span>';
+/* zobrazí hodnotu; prázdna → „over si“; text „over si“ sa zvýrazní */
+const val = v => (v === '' || v == null) ? OVER : esc(v).replace(/over si/g, OVER);
+const DIFF = { 1:'Ľahká', 2:'Stredná', 3:'Náročná' };
+
+const placeById = id => MIESTA.find(p => p.id === id);
+/* výška: 2015 → „2015 m“, 'cca 1960 (over si)' → „cca 1960 m (over si)“, '' → „over si“ */
+const vyskaTxt = p => typeof p.vyska === 'number' ? p.vyska + ' m' : val(String(p.vyska ?? '').replace(/(\d+)(?!\d|\s*m\b)/, '$1 m'));
+const vyskaNum = p => typeof p.vyska === 'number' ? p.vyska : (parseInt(String(p.vyska).replace(/\D+/g,' ').trim().split(' ')[0]) || null);
+const lat = p => p.gps[0], lon = p => p.gps[1];
+const coord = p => p.gps[0].toFixed(3).replace('.', ',') + '° N, ' + p.gps[1].toFixed(3).replace('.', ',') + '° E';
+
+/* localStorage môže byť v náhľade zablokované — vtedy dáta žijú len počas návštevy */
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+};
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600); }
+
+/* deterministický „náhodný“ generátor — ilustrácie vyzerajú zakaždým rovnako */
+function rng(seedStr){ let s = 0; for(const c of String(seedStr)) s = (s * 31 + c.charCodeAt(0)) % 233280; return () => (s = (s * 9301 + 49297) % 233280) / 233280; }
+
+/* vzdialenosť vzdušnou čiarou v km */
+function km(a, b){
+  const R = 6371, r = x => x * Math.PI / 180, dLa = r(lat(b) - lat(a)), dLo = r(lon(b) - lon(a));
+  const h = Math.sin(dLa/2)**2 + Math.cos(r(lat(a))) * Math.cos(r(lat(b))) * Math.sin(dLo/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+const routeKm = stops => stops.slice(1).reduce((s, id, i) => s + km(placeById(stops[i]), placeById(id)), 0);
+const routeDistanceSummary = stops => {
+  const air = stops.length > 1 ? routeKm(stops) : 0;
+  const total = air > 0 ? air * 1.38 : 0;
+  const hours = total > 0 ? total / 4.1 : 0;
+  return { km: total, hours, label: total > 0 ? `${total.toFixed(1)} km · ${hours.toFixed(1)} h` : '—' };
+};
+
+/* Mapy.cz: vyhľadanie miesta a pešia trasa cez ich URL API */
+const mapySearch = q => 'https://mapy.cz/turisticka?q=' + encodeURIComponent(q);
+const mapyPin = p => p.nazov
+  ? `https://mapy.cz/turisticka?q=${encodeURIComponent(p.nazov)}&x=${lon(p)}&y=${lat(p)}&z=15`
+  : `https://mapy.cz/fnc/v1/showmap?mapset=outdoor&center=${lon(p)},${lat(p)}&zoom=15&marker=true`;
+const mapyPoint = mapyPin;
+const mapyStopLinks = stops => '<div class="row" style="gap:6px">' +
+  stops.map(pointInfo).filter(i => i.gps).map(i =>
+    `<a class="stop-pill" href="${mapyPin({ nazov:i.name, gps:i.gps })}" target="_blank" rel="noopener">📍 ${esc(i.name)}</a>`).join('') + '</div>';
+function mapyRoute(stops){
+  const pts = stops.map(pointInfo).filter(i => i.gps);
+  if(!pts.length) return 'https://mapy.cz';
+  const c = i => `${i.gps[1]},${i.gps[0]}`;
+  if(pts.length === 1) return mapyPin({ nazov: pts[0].name, gps: pts[0].gps });
+  const mid = pts.slice(1,-1).slice(0,13).map(c).join(';');
+  return `https://mapy.cz/fnc/v1/route?mapset=outdoor&routeType=foot_hiking&start=${c(pts[0])}&end=${c(pts[pts.length-1])}` + (mid ? `&waypoints=${mid}` : '');
+}
+
+/* ===== Ilustrácie — filmové scény namiesto fotiek =====
+   scene(seed, { w, h, mood, subject, ... }) nakreslí krajinu:
+   obloha → hviezdy / mesiac / slnko → hrebene so svetlými stenami → hmla → lesy smrekov
+   → svietiaci objekt (stan, chata, útulňa...) → vinetácia. Rovnaký seed = rovnaký obrázok. */
+const MOODS = {
+  noc:    { sky:['#060a16','#132038','#2e3f58'], light:'moon', lightCol:'#f4f1e3', far:['#46566c','#1d2836'], mid:['#22312e','#121b18'],
+            forest:['#0f1a15','#08100c','#030604'], mist:'rgba(150,175,215,.14)', stars:1, lit:'#9fb3cc' },
+  sumrak: { sky:['#1c1736','#7c4366','#f2a467'], light:'sun', lightCol:'#ffd39a', far:['#93607a','#462f4c'], mid:['#3a2b46','#1f1729'],
+            forest:['#1c1628','#120e1b','#08060c'], mist:'rgba(255,186,160,.16)', stars:.3, lit:'#ffb38a' },
+  hmla:   { sky:['#56707e','#a5b5b9','#dcdcd2'], light:'sun', lightCol:'#f7f4e8', far:['#90a3a8','#6f8488'], mid:['#566b68','#3e504a'],
+            forest:['#33443d','#222f29','#121b16'], mist:'rgba(236,239,232,.5)', stars:0, lit:'#eef2ee' },
+  zlata:  { sky:['#26405f','#cb8a50','#ffdb9c'], light:'sun', lightCol:'#fff1c6', far:['#a28c74','#5a6262'], mid:['#3f4b3f','#29322a'],
+            forest:['#26311f','#182015','#0a0f09'], mist:'rgba(255,214,150,.2)', stars:0, lit:'#ffd28a' }
+};
+const MOOD_LIST = Object.keys(MOODS);
+let svgUid = 0;                                       // unikátne id prechodov v každom obrázku
+
+/* jeden smrek: stupňovité vetvy + kmeň */
+function pine(x, y, h){
+  const w = h * .36, t = 4, R = [];
+  for(let i = 1; i <= t; i++){
+    const yi = y - h + h * .9 * i / t, wi = w * i / t;
+    R.push([x + wi / 2, yi]);
+    if(i < t) R.push([x + wi * .18, yi - h * .03]);
+  }
+  R.push([x + h * .025, y - h * .1], [x + h * .025, y]);
+  const L = R.map(([px, py]) => [2 * x - px, py]).reverse();
+  return 'M' + [[x, y - h], ...R, ...L].map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L') + 'Z';
+}
+/* hustý les smrekov medzi x0 a x1 */
+function forest(r, base, x0, x1, hMin, hMax, color){
+  let d = '', x = x0;
+  while(x < x1){ const h = hMin + r() * (hMax - hMin); d += pine(x, base + r() * h * .12, h); x += h * (.14 + r() * .2); }
+  return `<path d="${d}" fill="${color}"/>`;
+}
+/* zubatý hrebeň cez celú šírku */
+function jagged(r, W, base, amp, n){
+  const pts = [];
+  for(let i = 0; i <= n; i++){
+    pts.push([i * W / n, base - amp * (.3 + r() * .7)]);
+    if(i < n) pts.push([i * W / n + W / n * (.3 + r() * .4), base - amp * (.05 + r() * .45)]);
+  }
+  return pts;
+}
+/* hrebeň + svetlé steny pod vrcholmi (dodajú horám plasticitu) */
+function mountain(pts, W, H, fill, litCol, litOp, op = 1){
+  const d = `M0 ${H} L` + pts.map(([x,y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(' L') + ` L${W} ${H}Z`;
+  let faces = '';
+  for(let i = 1; i < pts.length - 1; i++){
+    const [px,py] = pts[i], [lx,ly] = pts[i-1], [rx,ry] = pts[i+1];
+    if(py < ly && py < ry){                           // vrchol
+      const depth = Math.min(ly, ry) - py;
+      faces += `<path d="M${px} ${py} L${(px - (px - lx) * .55).toFixed(1)} ${(py + depth * 1.1).toFixed(1)} L${(px + (rx - px) * .12).toFixed(1)} ${(py + depth * 1.35).toFixed(1)}Z" fill="${litCol}" opacity="${litOp}"/>`;
+      faces += `<path d="M${px} ${py + 2} L${(px + (rx - px) * .05).toFixed(1)} ${(py + depth * 1.6).toFixed(1)}" stroke="${litCol}" stroke-opacity="${litOp * .8}" stroke-width="1"/>`;
+    }
+  }
+  return `<path d="${d}" fill="${fill}" opacity="${op}"/>${faces}`;
+}
+/* svietiace objekty: stan, chata, útulňa, ubytovanie, bivak pri ohni */
+function subjectSVG(type, sx, sy, s, id){
+  const glow = `<ellipse cx="${sx}" cy="${sy}" rx="${s * 3}" ry="${s * .7}" fill="url(#${id}gl)"/><circle cx="${sx}" cy="${sy - s * .4}" r="${s * 2.4}" fill="url(#${id}gl)" opacity=".55"/>`;
+  const win = (x, y, w, h) => `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="#ffd27a"/>`;
+  if(type === 'stan') return glow + `
+    <path d="M${sx - s} ${sy} C${sx - s * .9} ${sy - s * .75} ${sx - s * .35} ${sy - s * .98} ${sx + s * .12} ${sy - s * .92} C${sx + s * .6} ${sy - s * .86} ${sx + s * .98} ${sy - s * .42} ${sx + s * 1.08} ${sy}Z" fill="url(#${id}tent)"/>
+    <path d="M${sx - s * .72} ${sy} Q${sx - s * .4} ${sy - s * .8} ${sx + s * .12} ${sy - s * .92} Q${sx + s * .62} ${sy - s * .7} ${sx + s * .86} ${sy}" fill="none" stroke="rgba(110,55,10,.55)" stroke-width="${s * .03}"/>
+    <path d="M${sx + s * .05} ${sy} L${sx + s * .28} ${sy - s * .5} L${sx + s * .5} ${sy}Z" fill="rgba(150,70,10,.45)"/>`;
+  if(type === 'utulna') return glow + `
+    <path d="M${sx - s * .75} ${sy} L${sx} ${sy - s * 1.05} L${sx + s * .75} ${sy}Z" fill="#120d0a"/>
+    <path d="M${sx - s * .18} ${sy} L${sx} ${sy - s * .42} L${sx + s * .18} ${sy}Z" fill="#ffd27a"/>`;
+  if(type === 'izba') return glow + `
+    <path d="M${sx - s * 1.5} ${sy - s * .9} L${sx} ${sy - s * 1.5} L${sx + s * 1.5} ${sy - s * .9}Z" fill="#120d0a"/>
+    <rect x="${sx - s * 1.3}" y="${sy - s * .92}" width="${s * 2.6}" height="${s * .92}" fill="#17110c"/>
+    ${[-1,-.45,.1,.65].map(k => win(sx + s * k, sy - s * .78, s * .26, s * .22) + win(sx + s * k, sy - s * .42, s * .26, s * .22)).join('')}`;
+  if(type === 'sirak') return glow + glow + `
+    <ellipse cx="${sx + s * .9}" cy="${sy - s * .08}" rx="${s * .7}" ry="${s * .14}" fill="#2a3550"/>
+    <path d="M${sx - s * .35} ${sy} L${sx + s * .35} ${sy - s * .1} M${sx - s * .3} ${sy - s * .1} L${sx + s * .3} ${sy}" stroke="#3a2412" stroke-width="${s * .09}" stroke-linecap="round"/>
+    <path d="M${sx - s * .22} ${sy - s * .05} Q${sx - s * .3} ${sy - s * .45} ${sx} ${sy - s * .85} Q${sx + s * .3} ${sy - s * .45} ${sx + s * .22} ${sy - s * .05}Z" fill="#ff9a3c"/>
+    <path d="M${sx - s * .1} ${sy - s * .05} Q${sx - s * .14} ${sy - s * .3} ${sx} ${sy - s * .55} Q${sx + s * .14} ${sy - s * .3} ${sx + s * .1} ${sy - s * .05}Z" fill="#ffe08a"/>`;
+  if(type === 'chata') return glow + `
+    <rect x="${sx + s * .45}" y="${sy - s * 1.25}" width="${s * .18}" height="${s * .4}" fill="#120d0a"/>
+    <path d="M${sx - s * 1.05} ${sy - s * .62} L${sx} ${sy - s * 1.2} L${sx + s * 1.05} ${sy - s * .62}Z" fill="#120d0a"/>
+    <rect x="${sx - s * .85}" y="${sy - s * .64}" width="${s * 1.7}" height="${s * .64}" fill="#17110c"/>
+    ${win(sx - s * .62, sy - s * .48, s * .3, s * .26)}${win(sx + s * .32, sy - s * .48, s * .3, s * .26)}
+    <rect x="${sx - s * .12}" y="${sy - s * .42}" width="${s * .24}" height="${s * .42}" fill="#ffb648"/>`;
+  return '';
+}
+/* celá scéna — v6: tlmená zemitá plocha + vrstevnice (topografická kresba), bez efektov */
+const TOPO = {
+  noc:    { bg:['#27362d','#33443a'], line:'#ebe4d0' },
+  sumrak: { bg:['#5a463a','#6e5746'], line:'#f1e4cf' },
+  hmla:   { bg:['#46555a','#576b71'], line:'#e9eeec' },
+  zlata:  { bg:['#5b5e3f','#727650'], line:'#f2ecd0' }
+};
+/* uzavretá hladká „kopcovitá“ krivka */
+function blob(r, cx, cy, rad, wob){
+  const n = 10, ph = r() * 6.28, k1 = 1 + Math.floor(r() * 2), k2 = 3 + Math.floor(r() * 2), P = [];
+  for(let i = 0; i < n; i++){ const a = i / n * Math.PI * 2, f = 1 + wob * (Math.sin(a * k1 + ph) * .6 + Math.sin(a * k2 + ph * 1.7) * .4);
+    P.push([cx + Math.cos(a) * rad * f * 1.3, cy + Math.sin(a) * rad * f * .82]); }
+  let d = `M${P[0][0].toFixed(1)} ${P[0][1].toFixed(1)}`;
+  for(let i = 0; i < n; i++){ const p0 = P[(i + n - 1) % n], p1 = P[i], p2 = P[(i + 1) % n], p3 = P[(i + 2) % n];
+    d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)} ${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)} ${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`; }
+  return d + 'Z';
+}
+/* piktogram miesta čiarou (stan, chata, útulňa, izba, bivak = prerušovaný kruh) */
+function subjectIcon(type, x, y, s){
+  const f = n => n.toFixed(1);
+  if(type === 'stan') return `<path d="M${f(x - s)} ${f(y)} L${f(x)} ${f(y - s * .95)} L${f(x + s)} ${f(y)}Z M${f(x)} ${f(y - s * .95)} L${f(x)} ${f(y)}" stroke-width="2"/>`;
+  if(type === 'utulna') return `<path d="M${f(x - s * .8)} ${f(y)} L${f(x)} ${f(y - s)} L${f(x + s * .8)} ${f(y)}Z" stroke-width="2"/><path d="M${f(x - s * .2)} ${f(y)} V${f(y - s * .4)} H${f(x + s * .2)} V${f(y)}" stroke-width="1.6"/>`;
+  if(type === 'izba') return `<path d="M${f(x - s * 1.2)} ${f(y)} V${f(y - s * .7)} L${f(x)} ${f(y - s * 1.2)} L${f(x + s * 1.2)} ${f(y - s * .7)} V${f(y)}Z" stroke-width="2"/><path d="M${f(x - s * .7)} ${f(y - s * .4)} h${f(s * .3)} M${f(x + s * .4)} ${f(y - s * .4)} h${f(s * .3)}" stroke-width="1.6"/>`;
+  if(type === 'sirak') return `<circle cx="${f(x)}" cy="${f(y - s * .5)}" r="${f(s * .95)}" stroke-width="2" stroke-dasharray="${f(s * .3)} ${f(s * .22)}"/>`;
+  if(type === 'chata') return `<path d="M${f(x - s)} ${f(y)} V${f(y - s * .6)} L${f(x)} ${f(y - s * 1.15)} L${f(x + s)} ${f(y - s * .6)} V${f(y)}Z" stroke-width="2"/><path d="M${f(x - s * .18)} ${f(y)} V${f(y - s * .45)} H${f(x + s * .18)} V${f(y)}" stroke-width="1.6"/>`;
+  return '';
+}
+function scene(seed, o){
+  const W = o.w, H = o.h, m = TOPO[o.mood] || TOPO.noc, r = rng(seed), id = 'g' + (++svgUid);
+  let topo = '';
+  if(o.ridge){
+    // hrebeň z reálnych vrcholov: hlavná čiara + tri ozveny pod ňou (vrstvy hôr)
+    const line = (pts, dy) => pts.map(([x, y], i) => (i ? 'L' : 'M') + x.toFixed(1) + ' ' + (y + dy).toFixed(1)).join(' ');
+    topo += `<path d="${line(o.ridge, 0)} L${W} ${H} L0 ${H}Z" fill="#fff" fill-opacity=".05" stroke="none"/>`;
+    [[0, 1, 1.8], [26, .5, 1.2], [52, .32, 1], [78, .2, 1]].forEach(([dy, op, w]) => { topo += `<path d="${line(o.ridge, dy)}" stroke-opacity="${op}" stroke-width="${w}"/>`; });
+    for(let i = 0; i < 4; i++) topo += `<path d="${blob(r, W * (.1 + r() * .8), H * (.9 + r() * .2), H * (.07 + r() * .06), .3)}" stroke-opacity=".12" stroke-width="1"/>`;
+  } else {
+    // vrstevnice: 2–3 „kopce“, každý ako sada vnorených uzavretých kriviek
+    const centers = (W / H > 1.6 ? 3 : 2);
+    for(let c = 0; c < centers; c++){
+      const cx = W * (.2 + r() * .6), cy = H * (.25 + r() * .5), base = Math.min(W, H) * (.2 + r() * .14), rings = 5 + Math.floor(r() * 3), seedState = r() * 1e6;
+      for(let k = 0; k < rings; k++){
+        const rr = rng(seed + c + 'c' + Math.floor(seedState)); const rad = base * (1 - k / (rings + .6));
+        topo += `<path d="${blob(rr, cx, cy, rad, .28 + .02 * k)}" stroke-opacity="${(.7 - k * .06).toFixed(2)}" stroke-width="${k === 0 ? 1.8 : 1.2}"${k === 2 ? ' stroke-dasharray="6 5"' : ''}/>`;
+      }
+    }
+  }
+  const sx = o.subjectX ?? W * .64, sy = o.subjectY ?? H * .8, ss = o.subjectScale ?? H * .08;
+  const icon = o.subject && !o.ridge ? `<g stroke-opacity=".95">${subjectIcon(o.subject, sx, sy, ss)}</g>` : '';
+  return `<defs><linearGradient id="${id}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${m.bg[0]}"/><stop offset="1" stop-color="${m.bg[1]}"/></linearGradient>
+      <linearGradient id="${id}t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="${o.topShade ? .3 : 0}"/><stop offset=".6" stop-color="#000" stop-opacity="0"/></linearGradient></defs>
+    <rect width="${W}" height="${H}" fill="url(#${id}b)"/>
+    <g class="scene" fill="none" stroke="${m.line}" stroke-linecap="round" stroke-linejoin="round">${topo}${icon}</g>
+    <rect width="${W}" height="${H}" fill="url(#${id}t)" pointer-events="none"/>${o.extra || ''}`;
+}
+const svgWrap = (W, H, inner, label, align='xMidYMid') => `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="${align} slice" ${label ? `role="img" aria-label="${esc(label)}"` : 'aria-hidden="true"'}>${inner}</svg>`;
+
+/* ilustrácia miesta: nálada podľa id, svietiaci objekt podľa typu */
+function placeArt(p, big){
+  const W = big ? 900 : 400, H = big ? 450 : 300;
+  const mood = MOOD_LIST[Math.max(0, MIESTA.indexOf(p)) % MOOD_LIST.length];   // susedné karty majú inú náladu
+  return svgWrap(W, H, scene(p.id, { w:W, h:H, mood, subject:p.typ, subjectX:W * .68, subjectY:H * (big ? .8 : .64), subjectScale:H * .1 }));
+}
+/* fotka, ak je v dátach; inak ilustrácia + štítok „ukážka“ */
+const placeCover = (p, big) => p.fotky && p.fotky.length
+  ? `<img src="${esc(p.fotky[0])}" alt="${esc(p.nazov)}" loading="lazy">`
+  : placeArt(p, big) + '<span class="badge">ukážka</span>';
+
+/* ===== Navigácia ===== */
+const PAGES = ['domov','spanie','trasy','mapa','moje','pocasie','pridat','projekt'];
+function showPage(p){
+  if(!PAGES.includes(p)) p = 'domov';
+  PAGES.forEach(x => $('#page-' + x).classList.toggle('active', x === p));
+  $$('#mainNav button').forEach(b => b.classList.toggle('active', b.dataset.goto === p));
+  const act = $('#mainNav button.active');
+  if(act) $('#mainNav').scrollTo({ left: act.offsetLeft - 24, behavior:'smooth' });   // aktívna položka viditeľná
+  try{ history.replaceState(null, '', '#' + p); }catch(e){}
+  window.scrollTo(0, 0);
+  if(p === 'mapa') renderMap();
+  if(p === 'moje') renderMyRoutes();
+  if(p === 'projekt') requestAnimationFrame(() => $$('.fill').forEach(f => f.style.width = f.dataset.w + '%'));
+  if(p === 'domov') startCarousel(); else stopCarousel();
+}
+/* výška hlavičky → sticky filtre sa zastavia tesne pod ňou */
+const setHeaderH = () => document.documentElement.style.setProperty('--header-h', $('#siteHeader').offsetHeight + 'px');
+window.addEventListener('resize', setHeaderH);
+
+/* jedna obsluha klikov pre celú stránku */
+document.addEventListener('click', e => {
+  const t = e.target;
+  const g = t.closest('[data-goto]'); if(g){ closeModal(); showPage(g.dataset.goto); return; }
+  const pt = t.closest('[data-point]'); if(pt){ jumpToPoint(pt.dataset.point); return; }
+  const o = t.closest('[data-open]'); if(o){ openPlace(o.dataset.open); return; }
+  const rt = t.closest('[data-route]'); if(rt){ openRoute(rt.dataset.route); return; }
+  const a = t.closest('[data-add]'); if(a){ addStop(a.dataset.add); return; }
+  const s = t.closest('[data-save]'); if(s){ saveSuggestion(s.dataset.save); return; }
+  const m = t.closest('[data-onmap]');
+  if(m){ closeModal(); mapSelected = m.dataset.onmap; showPage('mapa'); focusPlace(m.dataset.onmap); }
+});
+
+/* ===== Domov: hero s profilmi pohorí ===== */
+const altY = a => 540 - (a - 500) / 2200 * 250;          // výška v m → y v ilustrácii (hory v dolnej polovici)
+function ridgeAlt(pts, x){
+  for(let i = 1; i < pts.length; i++) if(x <= pts[i][0]){ const [x0,a0] = pts[i-1], [x1,a1] = pts[i]; return a0 + (a1-a0) * (x-x0) / (x1-x0); }
+  return pts[pts.length-1][1];
+}
+/* pin: palička + bodka + štítok, farba cyklí cez PIN_COLORS. attr = 'data-point="..."' alebo 'data-open="..."' */
+function pinMarker(x, y, label, color, attr){
+  return `<g class="hero-pin" ${attr} tabindex="0" role="button" aria-label="${esc(label)}"><title>${esc(label)}</title>
+    <line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y - 26).toFixed(1)}" stroke="${color}" stroke-width="1.4"/>
+    <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${color}"/>
+    <text class="hero-pin-lbl" x="${x.toFixed(1)}" y="${(y - 32).toFixed(1)}" text-anchor="middle" fill="${color}">${esc(label).toUpperCase()}</text></g>`;
+}
+/* „spatial scene“: svetlý terén v 2 vrstvách (far/near) + body na kliknutie — jemný parallax cez [data-depth] */
+function heroScene(range){
+  const pr = PROFILY[range], W = 1000, H = 420;
+  const ridge = [];
+  pr.body.forEach((b, i) => {
+    if(i){ const [x0,a0] = pr.body[i-1]; ridge.push([(x0 + b[0]) / 2, altY((a0 + b[1]) / 2)]); }
+    ridge.push([b[0], altY(b[1])]);
+  });
+  const echoLine = (dy, op, w) => `<path d="${ridge.map(([x,y],i) => (i ? 'L' : 'M') + x.toFixed(1) + ' ' + (y + dy).toFixed(1)).join(' ')}" fill="none" stroke="#cbc8bd" stroke-opacity="${op}" stroke-width="${w}"/>`;
+  const terrain = mountain(ridge, W, H, '#eceadf', '#ffffff', .6);
+
+  const pts = HERO_POINTS[range] || [];
+  const lons = pts.map(p => p.gps[1]);
+  const lonMn = Math.min(...lons), lonMx = Math.max(...lons);
+  const xs = pts.map(p => pts.length > 1 ? 90 + (p.gps[1] - lonMn) / (lonMx - lonMn) * 860 : 500);
+  const pins = pts.map((p, i) => {
+    const x = xs[i], near = xs.some((xj, j) => j !== i && Math.abs(xj - x) < 90);
+    const y = altY(ridgeAlt(pr.body, x)) + 46 + (near && i % 2 ? 24 : 0);
+    return pinMarker(x, y, p.name, PIN_COLORS[i % PIN_COLORS.length], `data-point="${esc(p.name)}"`);
+  }).join('');
+
+  return svgWrap(W, H, `<g data-depth=".08">${echoLine(36, .5, 1.2)}${echoLine(60, .3, 1)}</g>
+    <g data-depth=".16">${terrain}</g>
+    <g data-depth=".4">${pins}</g>`, 'Vrcholy: ' + range, 'xMidYMax');
+}
+/* pás chát/útulní naprieč trasami — rovnaký princíp (palička + bodka + štítok), jemný parallax */
+function hutScene(){
+  const W = 1000, H = 220;
+  const huts = HERO_HUTY.map(id => placeById(id)).filter(Boolean);
+  const base = H - 50;
+  const hill = `<path d="M0 ${base + 18} Q ${W * .25} ${base - 10} ${W * .5} ${base + 10} T ${W} ${base}" fill="none" stroke="#dedad0" stroke-width="1.4"/>`;
+  // rovnomerné rozostupy v danom poradí (nie podľa GPS — niektoré chaty majú takmer rovnakú dĺžku, nálepky by sa prekrývali)
+  const pins = huts.map((p, i) => {
+    const x = 90 + (huts.length > 1 ? i / (huts.length - 1) * 860 : 430);
+    const y = base - (i % 2) * 24;
+    return pinMarker(x, y, p.nazov, PIN_COLORS[i % PIN_COLORS.length], `data-open="${p.id}"`);
+  }).join('');
+  return svgWrap(W, H, `<g data-depth=".1">${hill}</g><g data-depth=".35">${pins}</g>`, 'Chaty a útulne', 'xMidYMid');
+}
+function renderHutStrip(){
+  const el = $('#hutStrip'); if(!el) return;
+  el.innerHTML = hutScene();
+  initSpatialParallax(el);
+}
+/* jemný parallax pri pohybe myšou — posúva [data-depth] vrstvy podľa ich hĺbky */
+function initSpatialParallax(root){
+  let raf = null, tx = 0, ty = 0;
+  const apply = () => {
+    raf = null;
+    root.querySelectorAll('[data-depth]').forEach(g => {
+      const d = parseFloat(g.dataset.depth);
+      g.style.transform = `translate(${(tx * 16 * d).toFixed(1)}px, ${(ty * 10 * d).toFixed(1)}px)`;
+    });
+  };
+  root.addEventListener('mousemove', e => {
+    const r = root.getBoundingClientRect();
+    tx = ((e.clientX - r.left) / r.width - .5) * 2;
+    ty = ((e.clientY - r.top) / r.height - .5) * 2;
+    if(!raf) raf = requestAnimationFrame(apply);
+  });
+  root.addEventListener('mouseleave', () => { tx = 0; ty = 0; if(!raf) raf = requestAnimationFrame(apply); });
+}
+/* klik na vrchol: skočí na pás trás a zvýrazní tie, čo cezeň vedú */
+function jumpToPoint(name){
+  const grid = $('#homeRoutes'); if(!grid) return;
+  grid.scrollIntoView({ behavior:'smooth', block:'center' });
+  const matches = TRASY.filter(t => t.zastavky.includes(name));
+  $$('#homeRoutes .route-card.point-hit').forEach(c => c.classList.remove('point-hit'));
+  if(matches.length){
+    matches.forEach(t => { const c = grid.querySelector(`[data-route="${t.id}"]`); if(c) c.classList.add('point-hit'); });
+    toast(`${matches.length === 1 ? 'Trasa' : 'Trasy'} cez ${name}: ${matches.map(t => t.nazov).join(', ')}`);
+  } else toast(`Zatiaľ žiadna trasa cez ${name}.`);
+  setTimeout(() => $$('#homeRoutes .route-card.point-hit').forEach(c => c.classList.remove('point-hit')), 3200);
+}
+
+let carIdx = 0, carTimer = null, carPaused = false;
+function renderCarousel(){
+  $('#slides').innerHTML = HERO_RANGES.map((rg, n) => `<div class="slide ${n ? '' : 'on'}" aria-hidden="${!!n}">${heroScene(rg)}</div>`).join('');
+  $('#carDots').innerHTML = HERO_RANGES.map((rg, n) => `<button aria-label="${rg}" class="${n ? '' : 'on'}" data-i="${n}"></button>`).join('');
+  $$('#carDots button').forEach(b => b.addEventListener('click', () => goSlide(+b.dataset.i)));
+  $$('#slides .hero-pin').forEach(g => g.addEventListener('keydown', e => {
+    if(e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    if(g.dataset.open) openPlace(g.dataset.open); else if(g.dataset.point) jumpToPoint(g.dataset.point);
+  }));
+  initSpatialParallax($('#hero'));
+  renderHutStrip();
+  goSlide(0);
+}
+function goSlide(i){
+  carIdx = (i + HERO_RANGES.length) % HERO_RANGES.length;
+  $$('#slides .slide').forEach((s, n) => { s.classList.toggle('on', n === carIdx); s.setAttribute('aria-hidden', n !== carIdx); });
+  $$('#carDots button').forEach((b, n) => b.classList.toggle('on', n === carIdx));
+  const rg = HERO_RANGES[carIdx], cnt = MIESTA.filter(p => p.pohorie === rg).length;
+  $('#rangeName').innerHTML = `<small>${cnt} ${cnt === 1 ? 'miesto' : cnt < 5 ? 'miesta' : 'miest'} na spanie · ilustrácia</small>${rg}`;
+}
+function startCarousel(){
+  stopCarousel();
+  if(carPaused || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  carTimer = setInterval(() => goSlide(carIdx + 1), 9000);       // každých 6 s
+}
+function stopCarousel(){ clearInterval(carTimer); carTimer = null; }
+
+/* ===== Filtre + zoznam miest (Domov) ===== */
+const MHD_STATIONS = [
+  [17.11, 48.15], [17.59, 48.38], [18.09, 48.31], [18.04, 48.89], [18.74, 49.22], [18.92, 49.07],
+  [19.62, 49.08], [19.31, 49.08], [19.15, 48.74], [20.30, 49.06], [21.24, 49.00], [21.26, 48.72]
+];
+const filters = { typ:'', pohorie:'', narocnost:'', riziko:'', pocasie:'', obdobie:'', mhdOnly:false, vybavenie:[] };
+const nearMhd = p => MHD_STATIONS.some(([lo, la]) => km({ gps:[la, lo] }, { gps:p.gps }) <= 10);
+function initFilters(){
+  const chips = [['','Všetko'], ...Object.entries(TYPY).map(([k,t]) => [k, t.nazov])];
+  const typeWrap = $('#typeChips'); if(typeWrap) {
+    typeWrap.innerHTML = chips.map(([k,l]) => `<button class="chip" data-type="${k}" aria-pressed="${k === ''}">${k ? `<span class="dot" style="background:var(--${k}-m)"></span>` : ''}${l}</button>`).join('');
+    $$('#typeChips .chip').forEach(b => b.addEventListener('click', () => { filters.typ = b.dataset.type; syncFilterUI(); renderHome(); }));
+  }
+  const fRange = $('#fRange'); if(fRange){ fRange.innerHTML = '<option value="">Všetky</option>' + POHORIA.map(r => `<option>${r}</option>`).join(''); }
+  const routeRange = $('#routeFilterRange'); if(routeRange){ routeRange.innerHTML = '<option value="">Všetky</option>' + POHORIA.map(r => `<option>${r}</option>`).join(''); }
+  const bind = (sel, key) => { const node = $(sel); if(node) node.addEventListener('change', e => { filters[key] = e.target.value; renderHome(); }); };
+  bind('#fRange','pohorie'); bind('#fDiff','narocnost'); bind('#fRisk','riziko'); bind('#fWeather','pocasie'); bind('#fSeason','obdobie');
+  const mhd = $('#fMhd'); if(mhd) mhd.addEventListener('change', e => { filters.mhdOnly = e.target.checked; renderHome(); });
+  $$('.fEquip').forEach(c => c.addEventListener('change', () => { filters.vybavenie = $$('.fEquip:checked').map(x => x.value); renderHome(); }));
+  const toggle = $('#filterToggle'); if(toggle) toggle.addEventListener('click', () => { const panel = $('#filterPanel'); if(!panel) return; const o = panel.classList.toggle('open'); toggle.setAttribute('aria-expanded', o); });
+  const reset = $('#filterReset'); if(reset) reset.addEventListener('click', () => {
+    Object.assign(filters, { typ:'', pohorie:'', narocnost:'', riziko:'', pocasie:'', obdobie:'', mhdOnly:false, vybavenie:[] }); syncFilterUI(); renderHome();
+  });
+}
+function syncFilterUI(){
+  const chips = $$('#typeChips .chip'); chips.forEach(b => b.setAttribute('aria-pressed', b.dataset.type === filters.typ));
+  const fRange = $('#fRange'); if(fRange) fRange.value = filters.pohorie;
+  const fDiff = $('#fDiff'); if(fDiff) fDiff.value = filters.narocnost;
+  const fRisk = $('#fRisk'); if(fRisk) fRisk.value = filters.riziko;
+  const fWeather = $('#fWeather'); if(fWeather) fWeather.value = filters.pocasie;
+  const fSeason = $('#fSeason'); if(fSeason) fSeason.value = filters.obdobie;
+  const fMhd = $('#fMhd'); if(fMhd) fMhd.checked = filters.mhdOnly;
+  $$('.fEquip').forEach(c => c.checked = filters.vybavenie.includes(c.value));
+}
+const filtered = () => MIESTA.filter(p =>
+  (!filters.typ || p.typ === filters.typ) && (!filters.pohorie || p.pohorie === filters.pohorie) &&
+  (!filters.narocnost || p.narocnost === +filters.narocnost) && (!filters.riziko || p.riziko === filters.riziko) &&
+  (!filters.pocasie || p.zlePocasie) && (!filters.obdobie || p.obdobie.includes(filters.obdobie)) &&
+  (!filters.mhdOnly || nearMhd(p)) &&
+  filters.vybavenie.every(v => p.overene.includes(v)));
+
+function placeCard(p){
+  return `<article class="card">
+    <div class="cover">${placeCover(p)}${p.neoverene ? '<span class="badge new">čaká na overenie</span>' : ''}
+      <div class="cover-title"><small>${TYPY[p.typ].nazov} · ${p.pohorie}</small><h3>${esc(p.nazov)}</h3><span class="coord">${coord(p)}</span></div></div>
+    <div class="body">
+      <dl class="facts">
+        <dt>Výška</dt><dd>${vyskaTxt(p)}</dd>
+        <dt>Kuchyňa</dt><dd>${val(p.kuchyna)}</dd>
+        <dt>Otvorené</dt><dd>${val(p.otvorene)}</dd>
+        <dt>Miest</dt><dd>${val(p.miest)}</dd>
+      </dl>
+      <div class="row actions">
+        <button class="btn small" data-open="${p.id}">Detail</button>
+        <button class="btn small ghost" data-add="${p.id}">+ Do trasy</button>
+        <button class="btn small ghost" data-onmap="${p.id}">Na mape</button>
+      </div>
+    </div></article>`;
+}
+function renderHome(){
+  const list = filtered();
+  const result = $('#resultCount'); if(result) result.textContent = `${list.length} z ${MIESTA.length}`;
+  const homeGrid = $('#homeGrid'); if(homeGrid){ homeGrid.innerHTML = ''; homeGrid.hidden = true; }
+  const mapPlaces = $('#mapPlacesList'); if(mapPlaces){
+    mapPlaces.innerHTML = list.length ? list.map(placeCard).join('') : '<div class="empty">Nič nevyhovuje filtrom. Skús ich uvoľniť — niektoré údaje ešte overujeme.</div>';
+  }
+}
+
+/* ===== Kde spať — skupiny podľa typu ===== */
+function renderTypeGroups(){
+  $('#typeGroups').innerHTML = Object.entries(TYPY).map(([k, t]) => {
+    const list = MIESTA.filter(p => p.typ === k);
+    return `<div class="type-group">
+      <div class="type-head t-${k}"><span class="dot" style="width:22px;height:22px;background:var(--${k}-m)"></span>
+        <div><h3>${t.nazov} <small class="muted">(${list.length})</small></h3><p>${val(t.popis)}</p></div></div>
+      ${list.length ? `<div class="grid">${list.map(placeCard).join('')}</div>`
+        : `<div class="empty">Zatiaľ tu nemáme overené miesto. Poznáš nejaké? <button class="btn small ghost" data-goto="pridat">Pridaj ho</button></div>`}
+    </div>`;
+  }).join('');
+}
+
+/* ===== Detail miesta ===== */
+function openModal(html, wide){
+  $('#modalContent').innerHTML = html;
+  $('#modal').classList.toggle('wide', !!wide);
+  $('#overlay').classList.add('open'); $('#modal').scrollTop = 0;
+  $('#modalClose').focus();
+}
+function closeModal(){ $('#overlay').classList.remove('open'); }
+$('#modalClose').addEventListener('click', closeModal);
+$('#overlay').addEventListener('click', e => { if(e.target.id === 'overlay') closeModal(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
+
+function openPlace(id){
+  const p = placeById(id); if(!p) return;
+  const posts = allPosts().filter(x => x.points.includes(id));
+  const photos = [...(p.fotky || []), ...(store.get('uvh_place_photos', {})[p.id] || [])];
+  const web = p.web ? `<a href="${esc(p.web)}" target="_blank" rel="noopener">${esc(p.web.replace(/^https?:\/\/(www\.)?/,''))} ↗</a>` : OVER;
+  const inRoutes = TRASY.filter(t => t.zastavky.includes(id));
+  const gallery = photos.length ? `<div class="photo-grid">${photos.map(src => `<img src="${esc(src)}" alt="${esc(p.nazov)}" loading="lazy">`).join('')}</div>` : '<p class="muted">Zatiaľ bez fotiek. Pridaj prvú fotku tohto miesta.</p>';
+  openModal(`
+    <div class="modal-cover">${placeCover(p, true)}</div>
+    <div class="modal-body">
+      <div class="row"><span class="tag t-${p.typ}">${TYPY[p.typ].nazov}</span><span class="tag">${p.pohorie}</span>
+        <span class="tag">${DIFF[p.narocnost]}</span><span class="tag">Riziko: ${p.riziko}</span>
+        ${p.neoverene ? '<span class="tag t-stan">čaká na overenie</span>' : ''}</div>
+      <h2 id="modalTitle" style="margin:0">${esc(p.nazov)}</h2>
+      <p style="margin:0">${val(p.popis)}</p>
+      <div class="two" style="gap:14px">
+        <dl class="facts panel" style="margin:0">
+          <dt>Kuchyňa</dt><dd>${val(p.kuchyna)}</dd><dt>Cenník</dt><dd>${val(p.cennik)}</dd>
+          <dt>Otvorené</dt><dd>${val(p.otvorene)}</dd><dt>Počet miest</dt><dd>${val(p.miest)}</dd>
+          <dt>Rezervácia</dt><dd>${val(p.rezervacia)}</dd><dt>Web</dt><dd>${web}</dd>
+        </dl>
+        <dl class="facts panel" style="margin:0">
+          <dt>Výška</dt><dd>${vyskaTxt(p)}</dd><dt>Voda</dt><dd>${val(p.voda)}</dd><dt>Kachle</dt><dd>${val(p.kachle)}</dd>
+          <dt>GPS</dt><dd>${coord(p)}</dd>
+          <dt>Obdobie</dt><dd>${p.obdobie.join(', ')}</dd>
+          <dt>Počasie</dt><dd>${p.zlePocasie ? 'aj pri horšom' : 'len stabilné'}</dd>
+        </dl>
+      </div>
+      <div class="row">
+        <button class="btn" data-add="${p.id}">+ Pridať do trasy</button>
+        <button class="btn ghost" data-onmap="${p.id}">Na mape</button>
+        <a class="btn ghost" href="${mapyPin(p)}" target="_blank" rel="noopener">Mapy.cz ↗</a>
+        <button class="btn ghost" data-goto="pridat" data-fix="${p.id}">Opraviť info</button>
+      </div>
+      <div>
+        <h3>Fotky</h3>
+        ${gallery}
+        <label class="drop" for="placePhotoUpload" style="margin-top:12px"><span>📷 Pridať fotku</span><input id="placePhotoUpload" type="file" accept="image/*" hidden></label>
+      </div>
+      ${inRoutes.length ? `<div><h3>Na trasách</h3><div class="row">${inRoutes.map(t => `<button class="stop-pill" data-route="${t.id}">🥾 ${esc(t.nazov)}</button>`).join('')}</div></div>` : ''}
+      <div><h3>Zážitky (${posts.length})</h3>
+        ${posts.length ? `<p style="margin:0 0 10px">Posledný stav trasy: <b>${esc(posts[0].state)}</b> <small class="muted">(${fmtDate(posts[0].date)})</small></p>
+          <div class="mini-posts">${posts.slice(0, 6).map(x => `<button class="mini-post" data-goto="zazitky">${x.photo ? `<img src="${esc(x.photo)}" alt="">` : sceneArt(x.id)}<span>${esc(x.title)}</span></button>`).join('')}</div>`
+          : '<p class="muted">Zatiaľ bez zážitkov. <button class="btn small ghost" data-newpost>Pridaj prvý</button></p>'}</div>
+    </div>`);
+  $('[data-fix]', $('#modalContent')).addEventListener('click', () => { switchTab('fix'); $('#fxPlace').value = p.id; });
+  const inp = $('#placePhotoUpload'); if(inp){ inp.addEventListener('change', async e => {
+    const file = e.target.files?.[0]; if(!file) return;
+    const photo = await readPhoto(file, 1200);
+    if(!photo) return;
+    const map = store.get('uvh_place_photos', {});
+    map[p.id] = [...(map[p.id] || []), photo];
+    store.set('uvh_place_photos', map);
+    openPlace(p.id);
+  }); }
+}
+
+/* ===== Trasy — prezentácia ===== */
+const stopName = s => placeById(s) ? placeById(s).nazov : s;
+const routeNights = t => t.zastavky.filter(s => placeById(s)).length;
+const routeAscent = t => t.profil.slice(1).reduce((s, [,a], i) => s + Math.max(0, a - t.profil[i][1]), 0);
+const ROUTE_MOOD = { 1:'zlata', 2:'sumrak', 3:'noc' };
+
+/* obálka trasy: filmová scéna + tenká biela krivka trasy ako v Strave */
+function routeCover(t, size){
+  const W = size === 'wide' ? 1200 : 400, H = size === 'wide' ? 680 : 500;
+  const first = t.zastavky.map(placeById).find(Boolean);
+  const box = size === 'wide' ? 300 : 190, bx = W - box - (size === 'wide' ? 70 : 12), by = size === 'wide' ? 60 : 30;
+  const curve = `<g transform="translate(${bx},${by})">${routeCurve(t.zastavky, box, box, { pad:24, width: size === 'wide' ? 3 : 2, halo:'rgba(0,0,0,.3)', labels:'small' })}</g>`;
+  return svgWrap(W, H, scene(t.id, { w:W, h:H, mood:ROUTE_MOOD[t.narocnost], subject:first ? first.typ : 'stan',
+    subjectX: W * (size === 'wide' ? .62 : .5), subjectScale: H * .07, topShade:.45, extra:'' }) + curve);
+}
+/* štatistiky priamo v obraze */
+const stravaStats = t => `<div class="strava">
+  <div><small>Dni</small><b>${t.dni.length}</b></div><div><small>Noci</small><b>${routeNights(t)}</b></div>
+  <div><small>Prevýšenie</small><b>${routeAscent(t)} m</b></div><div><small>Náročnosť</small><b>${DIFF[t.narocnost]}</b></div></div>`;
+/* výškový profil s osou (orientačný, vzdialenosti nie sú v mierke) */
+function elevChart(t){
+  const W = 760, H = 250, L = 46, R = 20, T = 34, B = 46, n = t.profil.length, id = 'g' + (++svgUid);
+  const alts = t.profil.map(p => p[1]), mn = Math.floor(Math.min(...alts) / 500) * 500, mx = Math.ceil(Math.max(...alts) / 500) * 500 || mn + 500;
+  const X = i => L + i * (W - L - R) / (n - 1), Y = a => T + (1 - (a - mn) / (mx - mn)) * (H - T - B);
+  let grid = '';
+  for(let a = mn; a <= mx; a += 500) grid += `<line x1="${L}" x2="${W - R}" y1="${Y(a)}" y2="${Y(a)}" stroke="rgba(255,255,255,.1)"/><text x="${L - 8}" y="${Y(a) + 4}" font-size="11" text-anchor="end" fill="rgba(239,233,220,.55)">${a}</text>`;
+  const line = t.profil.map(([,a], i) => `${X(i)},${Y(a)}`).join(' L');
+  const pts = t.profil.map(([name,a], i) => {
+    const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
+    return `<circle cx="${X(i)}" cy="${Y(a)}" r="5" fill="#17231d" stroke="var(--glow)" stroke-width="3"/>
+      <text x="${X(i)}" y="${Y(a) - 12}" font-size="12" font-weight="700" text-anchor="${anchor}" fill="#efe9dc">${a} m</text>
+      <text x="${X(i)}" y="${H - 18}" font-size="11.5" text-anchor="${anchor}" fill="rgba(239,233,220,.75)">${esc(name)}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Výškový profil trasy">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2b64b" stop-opacity=".4"/><stop offset="1" stop-color="#f2b64b" stop-opacity="0"/></linearGradient></defs>
+    ${grid}<path d="M${L},${Y(mn)} L${line} L${W - R},${Y(mn)}Z" fill="url(#${id})"/>
+    <path d="M${line}" fill="none" stroke="var(--glow)" stroke-width="3" stroke-linejoin="round"/>${pts}</svg>`;
+}
+const routeLenKm = t => {
+  const g = t.zastavky.map(pointInfo).filter(i => i.gps);
+  let s = 0;
+  for(let i = 1; i < g.length; i++) s += km({ gps:g[i-1].gps }, { gps:g[i].gps });
+  return s * 1.38;
+};
+const statRow = t => `<div class="stat-row"><span><b>${t.dni.length}</b> dni</span><span><b>${routeNights(t)}</b> ${routeNights(t) === 1 ? 'noc' : 'noci'}</span>
+  <span><b>~${routeLenKm(t).toFixed(0)} km</b></span>
+  <span><b>↑ ${routeAscent(t)} m</b> orientačne</span><span><b>${DIFF[t.narocnost]}</b></span></div>`;
+
+function routeCard(t){
+  const tags = [t.mhd && 'Dostupné MHD/busom', t.hreben && 'Hrebeňovka'].filter(Boolean);
+  return `<button class="route-card" data-route="${t.id}" aria-label="${esc(t.nazov)} — detail trasy">
+    <div class="cover">${routeCover(t)}<span class="badge">ukážka</span>${stravaStats(t)}
+      <div class="cover-title"><small>${t.pohorie} · ${t.obdobie.join(', ')}</small><h3>${esc(t.nazov)}</h3></div></div>
+    <div class="body">
+      ${tags.length ? `<div class="row" style="gap:6px">${tags.map(x => `<span class="tag">${x}</span>`).join('')}</div>` : ''}
+      <p class="muted" style="margin:0">${val(t.perex)}</p>
+    </div></button>`;
+}
+let routeFilter = '';
+const routeFilters = { pohorie:'', narocnost:'', nights:'', maxKm: 80, mhd:false, hreben:false };
+function routeListFiltered(){
+  return TRASY.filter(t => {
+    const nights = routeNights(t);
+    const okNights = !routeFilters.nights || (routeFilters.nights === '3' ? nights >= 3 : nights === +routeFilters.nights);
+    return (!routeFilters.pohorie || t.pohorie === routeFilters.pohorie) &&
+      (!routeFilters.narocnost || t.narocnost === +routeFilters.narocnost) &&
+      okNights &&
+      (!routeFilters.mhd || t.mhd) &&
+      (!routeFilters.hreben || t.hreben) &&
+      routeLenKm(t) <= routeFilters.maxKm;
+  });
+}
+function renderRoutes(){
+  const f = TRASY[0];
+  $('#featuredRoute').innerHTML = `<article class="featured">
+    ${routeCover(f, 'wide')}<span class="badge">ukážka</span>
+    <div class="body">
+      <span class="eyebrow">Trasa mesiaca · ${f.pohorie}</span>
+      <h3>${esc(f.nazov)}</h3>
+      <span class="bar-accent" style="margin:4px 0"></span>
+      <p style="margin:0;color:rgba(255,255,255,.85)">${val(f.perex)}</p>
+      ${statRow(f)}
+      <div class="row"><button class="btn glow" data-route="${f.id}">Pozrieť trasu</button><button class="btn on-dark" data-save="${f.id}">Uložiť medzi Moje trasy</button></div>
+    </div></article>`;
+  $('#routeChips').innerHTML = ['', ...POHORIA].map(r => `<button class="chip" data-rf="${r}" aria-pressed="${r === routeFilter}">${r || 'Všetky pohoria'}</button>`).join('');
+  $$('#routeChips .chip').forEach(b => b.addEventListener('click', () => { routeFilter = b.dataset.rf; routeFilters.pohorie = b.dataset.rf || ''; const range = $('#routeFilterRange'); if(range) range.value = routeFilters.pohorie; renderRoutes(); }));
+  const list = routeListFiltered();
+  $('#routeGrid').innerHTML = list.length ? list.map(routeCard).join('') : '<div class="empty">Žiadna trasa nevyhovuje zvoleným filtrom.</div>';
+  $('#homeRoutes').innerHTML = TRASY.map(routeCard).join('');
+  const kmInput = $('#routeFilterKm');
+  const kmValue = $('#routeKmValue');
+  if(kmInput){
+    kmInput.value = String(routeFilters.maxKm);
+    if(kmValue) kmValue.textContent = `${routeFilters.maxKm} km`;
+    kmInput.oninput = () => { routeFilters.maxKm = +kmInput.value; renderRoutes(); };
+  }
+  const rangeSel = $('#routeFilterRange'); if(rangeSel) { rangeSel.value = routeFilters.pohorie; rangeSel.onchange = e => { routeFilters.pohorie = e.target.value; routeFilter = e.target.value; renderRoutes(); }; }
+  const diffSel = $('#routeFilterDiff'); if(diffSel) { diffSel.value = routeFilters.narocnost; diffSel.onchange = e => { routeFilters.narocnost = e.target.value; renderRoutes(); }; }
+  const nightsSel = $('#routeFilterNights'); if(nightsSel) { nightsSel.value = routeFilters.nights; nightsSel.onchange = e => { routeFilters.nights = e.target.value; renderRoutes(); }; }
+  const mhdChk = $('#routeFilterMhd'); if(mhdChk) { mhdChk.checked = routeFilters.mhd; mhdChk.onchange = e => { routeFilters.mhd = e.target.checked; renderRoutes(); }; }
+  const hrebenChk = $('#routeFilterHreben'); if(hrebenChk) { hrebenChk.checked = routeFilters.hreben; hrebenChk.onchange = e => { routeFilters.hreben = e.target.checked; renderRoutes(); }; }
+  const resetBtn = $('#routeFilterReset'); if(resetBtn){ resetBtn.onclick = () => resetRouteFilters(); }
+}
+
+const resetRouteFilters = () => {
+  routeFilter = '';
+  Object.assign(routeFilters, { pohorie:'', narocnost:'', nights:'', maxKm: 80, mhd:false, hreben:false });
+  const rangeSel = $('#routeFilterRange'); if(rangeSel) rangeSel.value = '';
+  const diffSel = $('#routeFilterDiff'); if(diffSel) diffSel.value = '';
+  const nightsSel = $('#routeFilterNights'); if(nightsSel) nightsSel.value = '';
+  const kmInput = $('#routeFilterKm'); if(kmInput) kmInput.value = '80';
+  const kmValue = $('#routeKmValue'); if(kmValue) kmValue.textContent = '80 km';
+  const mhdChk = $('#routeFilterMhd'); if(mhdChk) mhdChk.checked = false;
+  const hrebenChk = $('#routeFilterHreben'); if(hrebenChk) hrebenChk.checked = false;
+  renderRoutes();
+};
+function routeStopsHTML(stops){
+  const first = pointInfo(stops[0]);
+  const same = (a, b) => a.gps && b.gps && a.gps[0] === b.gps[0] && a.gps[1] === b.gps[1];
+  const out = stops.map((s, i) => {
+    const inf = pointInfo(s);
+    if(i > 0 && i === stops.length - 1 && same(inf, first)) return '<span class="stop-back">↺ späť na štart</span>';
+    const t = BOD_TYPY[inf.typ] || { ico:'📍', nazov:'Bod' };
+    const cls = 'stop-pill ' + (inf.place ? 't-' + inf.place.typ : 't-bod');
+    const label = `<span class="ico" aria-hidden="true">${t.ico}</span>${esc(inf.name)}<small>${t.nazov}</small>`;
+    if(inf.place) return `<button class="${cls}" data-open="${esc(inf.place.id)}" title="${t.nazov} – detail miesta">${label}</button>`;
+    if(inf.gps) return `<a class="${cls}" href="${mapyPin({ nazov:inf.name, gps:inf.gps })}" target="_blank" rel="noopener" title="${t.nazov} – otvoriť v Mapy.cz">${label}<span aria-hidden="true">↗</span></a>`;
+    return `<span class="${cls}">${label}</span>`;
+  });
+  return `<div class="stops">${out.join('<span class="muted">→</span>')}</div>`;
+}
+function routeLegend(stops){
+  const used = [...new Set(stops.map(s => pointInfo(s).typ).filter(Boolean))];
+  return `<p class="stop-legend">${used.map(k => `<span>${BOD_TYPY[k].ico} ${BOD_TYPY[k].nazov}</span>`).join('')}</p>`;
+}
+function openRoute(id){
+  const t = TRASY.find(x => x.id === id); if(!t) return;
+  openModal(`
+    <div class="modal-cover">${routeCover(t, 'wide')}<span class="badge">ukážka</span></div>
+    <div class="modal-body">
+      <div class="row"><span class="tag">${t.pohorie}</span><span class="tag diff-${t.narocnost}">${DIFF[t.narocnost]}</span><span class="tag">${t.obdobie.join(', ')}</span></div>
+      <h2 id="modalTitle" style="margin:0">${esc(t.nazov)}</h2>
+      <p style="margin:0;font-size:1.05rem">${val(t.perex)}</p>
+      ${statRow(t)}
+      ${routeStopsHTML(t.zastavky)}${routeLegend(t.zastavky)}
+      <div><h3>Výškový profil</h3><div class="elev">${elevChart(t)}</div>
+        <p class="muted" style="font-size:.82rem;margin:.4em 0 0">Orientačný profil — výšky over si, vzdialenosti nie sú v mierke.</p></div>
+      <div><h3>Po dňoch</h3><ol class="timeline">${t.dni.map((d, i) => `<li><span class="day">${i + 1}.</span><b>Deň ${i + 1}</b><br>${val(d)}</li>`).join('')}</ol></div>
+      <div class="note ${t.nebezpecne ? 'danger' : ''}">⚠ ${val(t.upozornenie)}</div>
+      <div class="row">
+        <button class="btn" data-save="${t.id}">Uložiť medzi Moje trasy</button>
+        <a class="btn ghost" href="${mapyRoute(t.zastavky)}" target="_blank" rel="noopener">Mapy.cz ↗</a>
+      </div>
+    </div>`, true);
+}
+function saveSuggestion(id){
+  const t = TRASY.find(x => x.id === id);
+  newRoute(t.nazov, t.zastavky.filter(placeById));
+  toast(`„${t.nazov}“ je uložená v Mojich trasách`);
+}
+
+/* ===== Moje trasy — dátový model (ukladá sa automaticky) =====
+   trasa = { id, name, date, note, stops:[id miesta] } */
+const state = store.get('uvh_routes_v2', { routes:[], activeId:null });
+state.routes.forEach(r => r.stops = r.stops.filter(placeById));            // odstráni neexistujúce miesta
+const save = () => store.set('uvh_routes_v2', state);
+const activeRoute = () => state.routes.find(r => r.id === state.activeId) || null;
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+function newRoute(name, stops=[]){
+  const r = { id:uid(), name: name || 'Nová trasa ' + (state.routes.length + 1), date:'', note:'', stops:[...stops] };
+  state.routes.unshift(r); state.activeId = r.id; save(); refreshRoutes();
+  return r;
+}
+function addStop(id){
+  const r = activeRoute() || newRoute();
+  if(r.stops[r.stops.length - 1] === id){ toast('Toto miesto už je posledné v trase.'); return; }
+  r.stops.push(id); save(); refreshRoutes();
+  toast(`Pridané do „${r.name}“`);
+}
+function refreshRoutes(){
+  const r = activeRoute();
+  $('#barName').textContent = r ? `${r.name} · ${r.stops.length} ${r.stops.length === 1 ? 'zastávka' : r.stops.length < 5 && r.stops.length ? 'zastávky' : 'zastávok'}` : 'Žiadna — pridaj miesto';
+  if($('#page-moje').classList.contains('active')) renderMyRoutes();
+  if($('#page-mapa').classList.contains('active')) renderMap();
+}
+function stopListHTML(r){
+  if(!r.stops.length) return '<p class="muted">Zatiaľ bez zastávok. Pridaj miesta zo zoznamu alebo z mapy.</p>';
+  return `<ol class="stop-list">${r.stops.map((id, i) => {
+    const p = placeById(id), leg = i ? ` · ${km(placeById(r.stops[i-1]), p).toFixed(1)} km vzdušne` : '';
+    return `<li><span class="n"><b>${esc(p.nazov)}</b><br><small class="muted">${p.pohorie}${leg}</small></span>
+      <button class="icon-btn" data-mv="${i}" data-dir="-1" aria-label="Posunúť vyššie">↑</button>
+      <button class="icon-btn" data-mv="${i}" data-dir="1" aria-label="Posunúť nižšie">↓</button>
+      <button class="icon-btn" data-rm="${i}" aria-label="Odstrániť">✕</button></li>`;
+  }).join('')}</ol>`;
+}
+function handleStopClick(e){
+  const r = activeRoute(); if(!r) return;
+  const mv = e.target.closest('[data-mv]'), rm = e.target.closest('[data-rm]');
+  if(mv){ const i = +mv.dataset.mv, j = i + +mv.dataset.dir; if(j < 0 || j >= r.stops.length) return; [r.stops[i], r.stops[j]] = [r.stops[j], r.stops[i]]; }
+  else if(rm) r.stops.splice(+rm.dataset.rm, 1);
+  else return;
+  save(); refreshRoutes();
+}
+function routeTips(r){
+  const tips = [], first = placeById(r.stops[0]);
+  if(first && !first.overene.includes('rezervacia')) tips.push(`<div class="note">Prvý nocľah (${esc(first.nazov)}) nemá istú rezerváciu. Vyrieš ho vopred alebo maj záložný plán.</div>`);
+  if(r.stops.some(id => placeById(id).riziko === 'vysoké')) tips.push('<div class="note danger">Trasa obsahuje miesto s vysokým rizikom. Choď len za stabilného počasia a s kondíciou.</div>');
+  if(new Set(r.stops.map(id => placeById(id).pohorie)).size > 1) tips.push('<div class="note">Trasa spája viac pohorí — medzi nimi budeš potrebovať dopravu.</div>');
+  if(r.stops.length) tips.push('<div class="note ok">Počasie sleduj 2–3 dni vopred na Yr.no a Meteoblue.</div>');
+  return tips.join('');
+}
+function renderRouteItems(){
+  $('#routeItems').innerHTML = state.routes.length ? state.routes.map(r => `
+    <button class="route-item ${r.id === state.activeId ? 'on' : ''}" data-sel="${r.id}">
+      <b>${esc(r.name)}</b><br><small>${r.stops.length} zastávok · ${routeKm(r.stops).toFixed(1)} km vzdušne${r.date ? ' · ' + esc(r.date) : ''}</small>
+    </button>`).join('') : '<div class="empty">Zatiaľ nemáš uloženú trasu.</div>';
+}
+let confirmDelete = false;
+function renderMyRoutes(){
+  renderRouteItems();
+  const r = activeRoute();
+  if(!r){ $('#routeEditor').innerHTML = '<h3>Začni novou trasou</h3><p class="muted">Vytvor ju tlačidlom vľavo, pridávaj miesta zo zoznamu či z mapy, alebo si ulož hotový návrh.</p><button class="btn ghost" data-goto="trasy">Pozrieť trasy</button>'; return; }
+  const options = POHORIA.map(rg => `<optgroup label="${rg}">${MIESTA.filter(p => p.pohorie === rg).map(p => `<option value="${p.id}">${esc(p.nazov)} — ${TYPY[p.typ].nazov}</option>`).join('')}</optgroup>`).join('');
+  $('#routeEditor').innerHTML = `<div class="editor">
+    <label class="field">Názov trasy<input id="edName" value="${esc(r.name)}" maxlength="80"></label>
+    <div class="two" style="gap:12px">
+      <label class="field">Termín (začiatok)<input type="date" id="edDate" value="${esc(r.date)}"></label>
+      <label class="field">Celkom vzdušnou čiarou<input value="${routeKm(r.stops).toFixed(1)} km" disabled></label>
+    </div>
+    <label class="field">Poznámky (partia, doprava, výbava…)<textarea id="edNote" maxlength="1000">${esc(r.note)}</textarea></label>
+    <div><h3>Zastávky</h3><div id="edStops">${stopListHTML(r)}</div>
+      <div class="row"><select id="edAdd" style="flex:1;min-width:200px">${options}</select><button class="btn small" id="edAddBtn">+ Pridať</button></div></div>
+    ${routeTips(r)}
+    ${mapyStopLinks(r.stops)}
+    <div class="row">
+      <button class="btn" data-goto="mapa">Ukázať na mape</button>
+      <a class="btn ghost" href="${mapyRoute(r.stops)}" target="_blank" rel="noopener">Otvoriť v Mapy.cz ↗</a>
+      <button class="btn ghost" id="edDup">Duplikovať</button>
+      <button class="btn ${confirmDelete ? 'danger' : 'ghost'}" id="edDel">${confirmDelete ? 'Naozaj zmazať?' : 'Zmazať'}</button>
+    </div></div>`;
+  $('#edName').addEventListener('input', e => { r.name = e.target.value || 'Bez názvu'; save(); refreshBarOnly(); });
+  $('#edName').addEventListener('change', renderRouteItems);
+  $('#edDate').addEventListener('change', e => { r.date = e.target.value; save(); renderRouteItems(); });
+  $('#edNote').addEventListener('input', e => { r.note = e.target.value; save(); });
+  $('#edStops').addEventListener('click', handleStopClick);
+  $('#edAddBtn').addEventListener('click', () => addStop($('#edAdd').value));
+  $('#edDup').addEventListener('click', () => { const c = newRoute(r.name + ' (kópia)', r.stops); c.note = r.note; c.date = r.date; save(); toast('Trasa skopírovaná'); });
+  $('#edDel').addEventListener('click', () => {
+    if(!confirmDelete){ confirmDelete = true; renderMyRoutes(); return; }        // dvojkrokové potvrdenie
+    state.routes = state.routes.filter(x => x.id !== r.id);
+    state.activeId = state.routes[0]?.id || null; confirmDelete = false; save(); refreshRoutes(); renderMyRoutes(); toast('Trasa zmazaná');
+  });
+}
+const refreshBarOnly = () => { const r = activeRoute(); if(r) $('#barName').textContent = `${r.name} · ${r.stops.length} zastávok`; };
+$('#routeItems').addEventListener('click', e => {
+  const s = e.target.closest('[data-sel]'); if(!s) return;
+  state.activeId = s.dataset.sel; confirmDelete = false; save(); refreshRoutes(); renderMyRoutes();
+});
+$('#newRoute').addEventListener('click', () => { confirmDelete = false; newRoute(); renderMyRoutes(); $('#edName').select(); });
+
+/* ===== Mapa Slovenska — schematická ===== */
+const SK_OUTLINE = [[17.06,48.10],[16.95,48.27],[16.90,48.60],[17.20,48.86],[17.55,48.95],[17.90,49.00],[18.10,49.12],[18.35,49.32],[18.60,49.48],[18.85,49.52],[19.20,49.42],[19.45,49.60],[19.65,49.40],[19.85,49.20],[20.10,49.18],[20.35,49.40],[20.60,49.40],[20.90,49.30],[21.30,49.45],[21.65,49.42],[22.00,49.22],[22.56,49.08],[22.40,48.75],[22.15,48.42],[21.70,48.38],[21.40,48.56],[20.90,48.56],[20.50,48.50],[20.20,48.25],[19.90,48.15],[19.50,48.20],[19.05,48.07],[18.85,47.82],[18.20,47.75],[17.70,47.77],[17.30,47.95]];
+const CITIES = [
+  ['Bratislava',17.11,48.15],['Trnava',17.59,48.38],['Nitra',18.09,48.31],['Trenčín',18.04,48.89],['Žilina',18.74,49.22],['Martin',18.92,49.07],
+  ['Liptovský Mikuláš',19.62,49.08],['Ružomberok',19.31,49.08],['Banská Bystrica',19.15,48.74],['Poprad',20.30,49.06],['Prešov',21.24,49.00],
+  ['Košice',21.26,48.72],['Zvolen',19.13,48.58],['Prievidza',18.62,48.78],['Humenné',22.00,48.94],['Michalovce',22.08,48.75]
+];
+const RANGE_POLYGONS = [
+  { name:'Vysoké Tatry', color:'rgba(125, 98, 66, 0.18)', stroke:'rgba(125, 98, 66, 0.8)', points:[[19.75,49.25],[20.05,49.38],[20.38,49.34],[20.55,49.15],[20.45,48.98],[20.08,48.90],[19.80,49.02]] },
+  { name:'Nízke Tatry', color:'rgba(90, 117, 83, 0.18)', stroke:'rgba(90, 117, 83, 0.8)', points:[[19.05,48.98],[19.52,49.14],[19.77,49.08],[19.95,48.92],[19.75,48.73],[19.22,48.70],[19.00,48.82]] },
+  { name:'Malá Fatra', color:'rgba(98, 94, 163, 0.18)', stroke:'rgba(98, 94, 163, 0.8)', points:[[18.72,49.12],[18.96,49.24],[19.28,49.18],[19.38,49.02],[19.15,48.82],[18.80,48.86],[18.70,49.00]] },
+  { name:'Veľká Fatra', color:'rgba(138, 96, 73, 0.18)', stroke:'rgba(138, 96, 73, 0.8)', points:[[18.98,48.90],[19.40,49.02],[19.74,48.95],[19.76,48.72],[19.42,48.57],[19.05,48.62],[18.90,48.76]] },
+  { name:'Beskydy', color:'rgba(93, 119, 145, 0.12)', stroke:'rgba(93, 119, 145, 0.75)', points:[[18.20,49.42],[18.50,49.58],[18.92,49.52],[19.02,49.32],[18.76,49.14],[18.28,49.18],[18.12,49.28]] }
+];
+const MAP_W = 766, MAP_H = 420;
+const proj = (lo, la) => [(lo - 16.75) * 132, (49.72 - la) * 200];
+/* pohľady: celé SK + každé pohorie (stred a šírka sa počítajú z miest) */
+function presets(){
+  return [{ label:'Celé Slovensko', all:true }, ...POHORIA.map(rg => {
+    const pts = MIESTA.filter(p => p.pohorie === rg).map(p => proj(lon(p), lat(p)));
+    if(!pts.length) return null;
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    return { label:rg, cx:(Math.min(...xs) + Math.max(...xs)) / 2, cy:(Math.min(...ys) + Math.max(...ys)) / 2,
+      w: Math.max(14, (Math.max(...xs) - Math.min(...xs)) * 1.8, (Math.max(...ys) - Math.min(...ys)) * 1.8 * MAP_W / MAP_H) };
+  }).filter(Boolean)];
+}
+let vb = { x:0, y:0, w:MAP_W, h:MAP_H }, mapSelected = null;
+function setView(cx, cy, w){
+  w = Math.min(MAP_W * 1.2, Math.max(8, w)); const h = w * MAP_H / MAP_W;
+  vb = { x:cx - w/2, y:cy - h/2, w, h }; renderMap();
+}
+function zoomPreset(i){ const p = presets()[i]; if(p.all) setView(MAP_W/2, MAP_H/2, MAP_W); else setView(p.cx, p.cy, p.w); }
+function focusPlace(id){ const p = placeById(id); const [x,y] = proj(lon(p), lat(p)); setView(x, y, 30); }
+
+function renderMap(){
+  const svg = $('#map'); if(!svg) return;
+  svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  const k = vb.w / MAP_W, rM = 9 * k, fs = 12 * k;
+  const outline = 'M' + SK_OUTLINE.map(([lo,la]) => proj(lo,la).map(n => n.toFixed(1)).join(',')).join(' L') + 'Z';
+  const cities = CITIES.map(([n,lo,la]) => { const [x,y] = proj(lo,la);
+    return `<circle cx="${x}" cy="${y}" r="${2.8*k}" fill="rgba(31,42,36,.6)"/><text class="m-city" x="${x + 6*k}" y="${y + 4*k}" font-size="${11.5*k}" font-weight="700">${n}</text>`; }).join('');
+  const rangeLayers = RANGE_POLYGONS.map(rg => {
+    const points = rg.points.map(([lo, la]) => proj(lo, la)).map(([x, y]) => `${x},${y}`).join(' ');
+    return `<polygon points="${points}" fill="${rg.color}" stroke="${rg.stroke}" stroke-width="${1.4*k}" stroke-linejoin="round" />`;
+  }).join('');
+  const r = activeRoute();
+  const rp = r ? r.stops.map(id => proj(lon(placeById(id)), lat(placeById(id)))) : [];
+  const routeLine = rp.length > 1 ? `<polyline points="${rp.map(p => p.join(',')).join(' ')}" fill="none" stroke="var(--brand)" stroke-width="${3*k}" stroke-dasharray="${8*k} ${5*k}" stroke-linecap="round" stroke-linejoin="round"/>` : '';
+  const base = `<rect x="${vb.x - 3000}" y="${vb.y - 3000}" width="${vb.w + 6000}" height="${vb.h + 6000}" fill="#ebe7dc"/>
+    <path d="${outline}" fill="#f8f5ee" stroke="rgba(47,93,70,.55)" stroke-width="${2*k}" stroke-linejoin="round"/>${rangeLayers}${cities}`;
+
+  if(vb.w > 200){
+    const ps = presets();
+    const clusters = POHORIA.map(rg => {
+      const list = MIESTA.filter(p => p.pohorie === rg); if(!list.length) return '';
+      const pts = list.map(p => proj(lon(p), lat(p)));
+      const x = pts.reduce((s,p) => s + p[0], 0) / pts.length, y = pts.reduce((s,p) => s + p[1], 0) / pts.length;
+      return `<g class="m-place" data-cluster="${ps.findIndex(p => p.label === rg)}" tabindex="0" role="button" aria-label="${rg}: ${list.length} miest, priblížiť">
+        <circle cx="${x}" cy="${y}" r="${15*k}" fill="var(--glow)" stroke="#f8f5ee" stroke-width="${3*k}"/>
+        <text x="${x}" y="${y + 5*k}" font-size="${14*k}" fill="#1c2620" text-anchor="middle" font-weight="700" font-family="system-ui">${list.length}</text>
+        <text class="m-label" x="${x}" y="${y - 21*k}" font-size="${11*k}" stroke-width="${3*k}" text-anchor="middle">${rg}</text></g>`;
+    }).join('');
+    svg.innerHTML = base + routeLine + clusters;
+  } else {
+    const places = MIESTA.map(p => { const [x,y] = proj(lon(p), lat(p)), sel = p.id === mapSelected;
+      return `<g class="m-place" data-pid="${p.id}" tabindex="0" role="button" aria-label="${esc(p.nazov)}"><title>${esc(p.nazov)}</title>
+        <circle cx="${x}" cy="${y}" r="${sel ? rM*1.5 : rM}" fill="var(--${p.typ}-m)" stroke="#fff" stroke-width="${2*k}"/>
+        <text class="m-label" x="${x}" y="${y + rM + 12*k}" font-size="${fs}" stroke-width="${3*k}" text-anchor="middle">${esc(p.nazov)}</text></g>`; }).join('');
+    const nums = rp.map(([x,y], i) => `<g pointer-events="none"><circle cx="${x + rM*1.3}" cy="${y - rM*1.3}" r="${rM*.9}" fill="var(--glow)"/>
+      <text x="${x + rM*1.3}" y="${y - rM*1.3 + rM*.35}" font-size="${rM}" fill="#1c2620" text-anchor="middle" font-weight="700" font-family="system-ui">${i+1}</text></g>`).join('');
+    svg.innerHTML = base + routeLine + places + nums;
+  }
+  renderMapSide();
+}
+function renderMapSide(){
+  const p = placeById(mapSelected);
+  $('#mapSelected').innerHTML = p ? `
+    <div class="row"><span class="tag t-${p.typ}">${TYPY[p.typ].nazov}</span><span class="tag">${p.pohorie}</span></div>
+    <h3 style="margin:.5em 0 .3em">${esc(p.nazov)}</h3>
+    <p style="margin:0 0 10px" class="muted">${vyskaTxt(p)} · ${val(p.otvorene)} · ${coord(p)}</p>
+    <div class="row"><button class="btn small" data-add="${p.id}">+ Pridať do trasy</button><button class="btn small ghost" data-open="${p.id}">Detail</button><a class="btn small ghost" href="${mapyPin(p)}" target="_blank" rel="noopener">Mapy.cz ↗</a></div>`
+    : '<h3>Vyber miesto</h3><p class="muted" style="margin:0">Klikni na pohorie na mape alebo na tlačidlo nad mapou, potom na konkrétne miesto.</p>';
+  const r = activeRoute();
+  const dist = r && r.stops.length > 1 ? routeDistanceSummary(r.stops) : null;
+  $('#mapRoute').innerHTML = r ? `
+    <h3>${esc(r.name)}</h3><div id="mapStops">${stopListHTML(r)}</div>
+    ${r.stops.length ? mapyStopLinks(r.stops) : ''}
+    <p style="margin:0 0 10px"><b>${dist ? dist.label : '0.0 km · 0.0 h'}</b> <span class="muted">odhad pešej trasy</span></p>
+    <div class="row"><a class="btn small" href="${mapyRoute(r.stops)}" target="_blank" rel="noopener">Trasa v Mapy.cz ↗</a>
+      <button class="btn small ghost" data-goto="moje">Upraviť</button><button class="btn small ghost" id="mapNewRoute">+ Nová</button></div>`
+    : `<h3>Žiadna aktívna trasa</h3><p class="muted">Klikni na miesto a pridaj ho — trasa sa vytvorí sama.</p><button class="btn small" id="mapNewRoute">+ Nová trasa</button>`;
+  $('#mapStops')?.addEventListener('click', handleStopClick);
+  const btn = $('#mapNewRoute'); if(btn) btn.addEventListener('click', () => { newRoute(); toast('Nová trasa je aktívna'); });
+}
+function initMap(){
+  const svg = $('#map');
+  $('#mapPresets').innerHTML = presets().map((p, i) => `<button class="chip" data-preset="${i}">${p.label}</button>`).join('');
+  $$('#mapPresets .chip').forEach(b => b.addEventListener('click', () => zoomPreset(+b.dataset.preset)));
+  $('#mapLegend').innerHTML = Object.entries(TYPY).map(([k,t]) => `<span class="row" style="gap:5px"><span class="dot" style="background:var(--${k}-m)"></span>${t.nazov}</span>`).join('');
+  $('#zoomIn').addEventListener('click', () => setView(vb.x + vb.w/2, vb.y + vb.h/2, vb.w / 1.6));
+  $('#zoomOut').addEventListener('click', () => setView(vb.x + vb.w/2, vb.y + vb.h/2, vb.w * 1.6));
+  // ťahanie myšou aj prstom; klik bez pohybu = výber
+  let drag = null;
+  svg.addEventListener('pointerdown', e => { drag = { sx:e.clientX, sy:e.clientY, x:vb.x, y:vb.y, moved:false }; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener('pointermove', e => {
+    if(!drag) return;
+    const s = vb.w / svg.clientWidth, dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if(Math.abs(dx) + Math.abs(dy) > 4){ drag.moved = true; svg.classList.add('drag'); }
+    if(drag.moved){ vb.x = drag.x - dx * s; vb.y = drag.y - dy * s; svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); }
+  });
+  svg.addEventListener('pointerup', e => {
+    if(drag && !drag.moved) pickAt(document.elementFromPoint(e.clientX, e.clientY));
+    drag = null; svg.classList.remove('drag');
+  });
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const mx = vb.x + (e.clientX - rect.left) / rect.width * vb.w, my = vb.y + (e.clientY - rect.top) / rect.height * vb.h;
+    const nw = Math.min(MAP_W * 1.2, Math.max(8, vb.w * (e.deltaY > 0 ? 1.25 : .8))), nh = nw * MAP_H / MAP_W;
+    vb = { x: mx - (mx - vb.x) * nw / vb.w, y: my - (my - vb.y) * nh / vb.h, w:nw, h:nh }; renderMap();
+  }, { passive:false });
+  svg.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pickAt(e.target); } });
+}
+function pickAt(el){
+  const pl = el?.closest('[data-pid]'), cl = el?.closest('[data-cluster]');
+  if(pl){ mapSelected = pl.dataset.pid; renderMap(); openPlace(pl.dataset.pid); }
+  else if(cl) zoomPreset(+cl.dataset.cluster);
+}
+
+/* ===== Pridať chatu — formulár, ktorý vyrobí hotový záznam ===== */
+function switchTab(t){
+  $$('[data-tab]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === t));
+  $('#tab-add').classList.toggle('hidden', t !== 'add'); $('#tab-fix').classList.toggle('hidden', t !== 'fix');
+}
+$$('[data-tab]').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+const slug = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'miesto';
+function parseGps(s){
+  const n = (s.match(/-?\d+(?:[.,]\d+)?/g) || []).map(x => parseFloat(x.replace(',', '.')));
+  if(n.length < 2) return null;
+  const [la, lo] = n;
+  return (la > 47.5 && la < 49.8 && lo > 16.7 && lo < 22.7) ? [la, lo] : null;   // musí ležať na Slovensku
+}
+/* zápis miesta presne v tvare, aký sa vkladá do zoznamu MIESTA */
+function placeToCode(p){
+  const q = v => JSON.stringify(v), arr = a => '[' + a.map(q).join(',') + ']';
+  return `  {
+    id:${q(p.id)}, nazov:${q(p.nazov)}, typ:${q(p.typ)}, pohorie:${q(p.pohorie)}, vyska:${typeof p.vyska === 'number' ? p.vyska : q(p.vyska)}, gps:[${p.gps.join(', ')}],
+    popis:${q(p.popis)},
+    kuchyna:${q(p.kuchyna)}, cennik:${q(p.cennik)}, otvorene:${q(p.otvorene)}, miest:${q(p.miest)},
+    rezervacia:${q(p.rezervacia)}, voda:${q(p.voda)}, kachle:${q(p.kachle)}, web:${q(p.web)},
+    narocnost:${p.narocnost}, riziko:${q(p.riziko)}, zlePocasie:${p.zlePocasie}, obdobie:${arr(p.obdobie)}, overene:${arr(p.overene)}, fotky:[]
+  },`;
+}
+/* tipy sa NEPRIDÁVAJÚ priamo na web: z formulára vznikne správa pre tím, ktorý údaje overí */
+function mailLink(subject, body){
+  return 'mailto:' + PRIJEM_EMAIL + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+}
+
+$('#addForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const gps = parseGps($('#aGps').value);
+  if(!gps){ $('#aGps').setCustomValidity('Zadaj dve čísla v rámci Slovenska, napr. 49.1920, 20.1830'); $('#aGps').reportValidity(); return; }
+  const v = s => $(s).value.trim(), vys = v('#aVyska'), ob = $$('#aObdobie input:checked').map(x => x.value), ov = $$('#aOverene input:checked').map(x => x.value);
+  const p = {
+    id:slug(v('#aNazov')), nazov:v('#aNazov'), typ:v('#aTyp'), pohorie:v('#aPohorie'),
+    vyska: /^\d{3,4}$/.test(vys) ? +vys : vys, gps, popis:v('#aPopis'),
+    kuchyna:v('#aKuchyna'), cennik:v('#aCennik'), otvorene:v('#aOtvorene'), miest:v('#aMiest'),
+    rezervacia:v('#aRezervacia'), voda:v('#aVoda'), kachle:v('#aKachle'), web:v('#aWeb'),
+    narocnost:+v('#aNarocnost'), riziko:v('#aRiziko'), zlePocasie:$('#aZle').checked, obdobie:ob, overene:ov, fotky:[]
+  };
+  const f = (l, x) => x ? l + ': ' + x + '\n' : '';
+  const readable = 'Tip na nové miesto na spanie\n\n' + f('Názov', p.nazov) + f('Typ', TYPY[p.typ].nazov) + f('Pohorie', p.pohorie) + f('Výška (m)', vys) +
+    f('GPS', gps.join(', ')) + f('Popis', p.popis) + f('Kuchyňa', p.kuchyna) + f('Cenník', p.cennik) + f('Otvorené', p.otvorene) + f('Počet miest', p.miest) +
+    f('Rezervácia', p.rezervacia) + f('Voda', p.voda) + f('Kachle', p.kachle) + f('Web', p.web) + f('Náročnosť', DIFF[p.narocnost]) + f('Riziko', p.riziko) +
+    f('Obdobie', ob.join(', ')) + f('Isto overené vybavenie', ov.join(', ')) + (p.zlePocasie ? 'Bezpečne dostupné aj pri horšom počasí: áno\n' : '') +
+    '\nKontakt: ' + v('#aMail') + '\n';
+  const full = readable + '\n--- záznam do zoznamu MIESTA (vložiť až po overení) ---\n' + placeToCode(p);
+  const subject = 'Tip na chatu: ' + p.nazov;
+  const body = encodeURIComponent(full).length < 1800 ? full : readable;           // dlhé mailto odkazy klienty orežú
+  $('#addCode').textContent = full;
+  $('#addNote').textContent = PRIJEM_EMAIL ? 'Skontroluj údaje a odošli ich e-mailom. Miesto pridáme na web po overení.' : 'Odosielanie e-mailom ešte nie je nastavené. Skopíruj správu a pošli ju tímu.';
+  const a = $('#sendMail'); a.classList.toggle('hidden', !PRIJEM_EMAIL); a.href = PRIJEM_EMAIL ? mailLink(subject, body) : '#';
+  $('#addForm').classList.add('hidden'); $('#addResult').classList.remove('hidden');
+  toast('Správa je pripravená');
+});
+$('#aGps').addEventListener('input', e => e.target.setCustomValidity(''));
+$('#copyCode').addEventListener('click', async () => {
+  try{ await navigator.clipboard.writeText($('#addCode').textContent); toast('Kód skopírovaný'); }
+  catch(err){ const s = getSelection(), r = document.createRange(); r.selectNodeContents($('#addCode')); s.removeAllRanges(); s.addRange(r); toast('Kód označený — stlač Ctrl/Cmd + C'); }
+});
+$('#addAnother').addEventListener('click', () => { $('#addForm').reset(); $('#addForm').classList.remove('hidden'); $('#addResult').classList.add('hidden'); });
+
+$('#fixForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const pl = placeById($('#fxPlace').value), field = $('#fxField').value, text = $('#fxText').value.trim(), mail = $('#fxMail').value.trim();
+  const body = 'Oprava údajov\n\nMiesto: ' + pl.nazov + '\nČo upravujem: ' + field + '\nSprávna informácia: ' + text + '\nKontakt: ' + mail + '\n';
+  const m = $('#fixMsg'); m.classList.remove('hidden');
+  m.innerHTML = PRIJEM_EMAIL
+    ? 'Správa je pripravená. <a href="' + esc(mailLink('Oprava: ' + pl.nazov, body)) + '">Odoslať e-mailom</a> · Údaje overíme a až potom zmeníme.'
+    : 'Odosielanie e-mailom ešte nie je nastavené. Skopíruj text a pošli ho tímu:<pre class="code" style="margin-top:8px">' + esc(body) + '</pre>';
+});
+
+/* ===== Pripravenosť ===== */
+function updateQuiz(){
+  const n = $$('#quiz input:checked').length;
+  const msg = n <= 1 ? 'Začni ľahkou trasou (napr. „Prvý víkend v horách“) s nocľahom na obsluhovanej chate.'
+    : n <= 3 ? 'Zvládneš stredne náročné trasy. Exponovaný terén s reťazami zatiaľ vynechaj.'
+    : 'Môžeš zvážiť aj náročné trasy — len za stabilného počasia a s rezervou času.';
+  $('#quizResult').textContent = `${n}/5 · ${msg}`;
+}
+$('#quiz').addEventListener('change', updateQuiz);
+
+/* ===== Zážitky — mini sociálna sieť ===== */
+/* informácie o bode trasy: nocľah z MIESTA alebo bod z BODY */
+function pointInfo(pt){
+  const p = placeById(pt);
+  if(p) return { name:p.nazov, gps:p.gps, vyska:vyskaNum(p), place:p, typ:p.typ };
+  const b = BODY[pt];
+  return { name:pt, gps:b ? b.gps : null, vyska:b ? b.vyska : null, place:null, typ:b ? b.typ : null };
+}
+/* odkiaľ môže byť trasa príspevku: hotová trasa, moja trasa alebo jedno miesto */
+function routeSources(){
+  return [
+    { group:'Hotové trasy', items:TRASY.map(t => ({ key:'trasa:' + t.id, label:t.nazov, points:t.zastavky, pohorie:t.pohorie })) },
+    { group:'Moje trasy', items:state.routes.filter(r => r.stops.length).map(r => ({ key:'moja:' + r.id, label:r.name, points:r.stops, pohorie:placeById(r.stops[0]).pohorie })) },
+    { group:'Jedno miesto', items:MIESTA.map(p => ({ key:'miesto:' + p.id, label:p.nazov, points:[p.id], pohorie:p.pohorie })) }
+  ];
+}
+const findSource = key => routeSources().flatMap(g => g.items).find(i => i.key === key);
+
+/* štatistiky príspevku: km (zadané alebo vzdušne), prevýšenie, čas, noci */
+function postStats(post){
+  const infos = post.points.map(pointInfo), gps = infos.filter(i => i.gps);
+  let air = 0; for(let i = 1; i < gps.length; i++) air += km({ gps:gps[i-1].gps }, { gps:gps[i].gps });
+  const alts = infos.map(i => i.vyska).filter(v => v != null);
+  const up = alts.slice(1).reduce((s, a, i) => s + Math.max(0, a - alts[i]), 0);
+  return {
+    km: post.km ? post.km.toFixed(1) : air ? '~' + air.toFixed(1) : '—',
+    up: post.prevysenie ?? (alts.length > 1 ? up : null),
+    cas: post.cas || '—',
+    nights: infos.filter(i => i.place).length,
+    alts
+  };
+}
+
+/* krivka trasy zo súradníc — mierne zvlnená, aby pôsobila ako chodník (schematicky) */
+function routeCurve(points, W, H, o={}){
+  const pad = o.pad ?? 14, infos = points.map(pointInfo).filter(i => i.gps);
+  if(!infos.length) return '';
+  const lat0 = infos.reduce((s, i) => s + i.gps[0], 0) / infos.length, c = Math.cos(lat0 * Math.PI / 180);
+  const raw = infos.map(i => [i.gps[1] * c, -i.gps[0]]);
+  const xs = raw.map(p => p[0]), ys = raw.map(p => p[1]);
+  const minX = Math.min(...xs), minY = Math.min(...ys), spanX = Math.max(...xs) - minX || 1e-3, spanY = Math.max(...ys) - minY || 1e-3;
+  const sc = Math.min((W - pad*2) / spanX, (H - pad*2) / spanY);
+  const offX = (W - spanX * sc) / 2, offY = (H - spanY * sc) / 2;
+  const P = raw.map(([x,y]) => [offX + (x - minX) * sc, offY + (y - minY) * sc]);
+  // medziľahlé body s bočným odchýlením
+  const r = rng(points.join('|')), pts = [P[0]];
+  for(let i = 1; i < P.length; i++){
+    const [x0,y0] = P[i-1], [x1,y1] = P[i], dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+    for(let k = 1; k <= 4; k++){
+      const t = k / 5, off = (r() - .5) * len * .22;
+      pts.push([x0 + dx*t - dy/len*off, y0 + dy*t + dx/len*off]);
+    }
+    pts.push(P[i]);
+  }
+  // Catmull-Rom → hladké bézierove krivky
+  let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+  for(let i = 0; i < pts.length - 1; i++){
+    const p0 = pts[i-1] || pts[i], p1 = pts[i], p2 = pts[i+1], p3 = pts[i+2] || p2;
+    d += ` C${(p1[0] + (p2[0]-p0[0])/6).toFixed(1)} ${(p1[1] + (p2[1]-p0[1])/6).toFixed(1)} ${(p2[0] - (p3[0]-p1[0])/6).toFixed(1)} ${(p2[1] - (p3[1]-p1[1])/6).toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  const sw = o.width ?? 4, col = o.stroke ?? '#fff', placed = [];
+  const pins = infos.map((inf, i) => {
+    const [x,y] = P[i];
+    const dot = inf.place ? `<circle cx="${x}" cy="${y}" r="${sw * 1.6}" fill="var(--${inf.place.typ}-m)" stroke="#fff" stroke-width="${sw * .6}"/>`
+                          : (o.labels ? `<circle cx="${x}" cy="${y}" r="${sw * .9}" fill="#fff" stroke="${col}" stroke-width="2"/>` : '');
+    // popisy: nocľahy + začiatok + koniec; preskočí sa popis, ktorý by sa prekrýval s iným
+    let lbl = '';
+    if(o.labels && (inf.place || i === 0 || (i === infos.length - 1 && inf.name !== infos[0].name))){   // okružná trasa: koniec = začiatok
+      const small = o.labels === 'small', w = inf.name.length * (small ? 4.6 : 6.6);
+      const anchor = x - w/2 < 6 ? 'start' : x + w/2 > W - 6 ? 'end' : 'middle';
+      const x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w/2;
+      for(const ly of [y - sw * 2.8, y + sw * 2.8 + 10]){
+        const box = [x0, ly - 12, x0 + w, ly + 3];
+        if(!placed.some(q => box[0] < q[2] && box[2] > q[0] && box[1] < q[3] && box[3] > q[1])){
+          placed.push(box); lbl = `<text class="${small ? 'lbl-s' : 'lbl'}" x="${x}" y="${ly}" text-anchor="${anchor}">${esc(inf.name)}</text>`; break;
+        }
+      }
+    }
+    return dot + lbl;
+  }).join('');
+  const [sx,sy] = P[0], [ex,ey] = P[P.length-1];
+  return (P.length > 1 ? `<path d="${d}" fill="none" stroke="${o.halo ?? 'rgba(0,0,0,.25)'}" stroke-width="${sw + 4}" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="${d}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>` : '') + pins +
+    `<circle cx="${sx}" cy="${sy}" r="${sw * 1.3}" fill="#3fbf6f" stroke="#fff" stroke-width="2"/>` +
+    (P.length > 1 ? `<circle cx="${ex}" cy="${ey}" r="${sw * 1.3}" fill="#1f2b25" stroke="#fff" stroke-width="2"/>` : '');
+}
+/* malý výškový profil pod štatistikami */
+function sparkline(alts, id){
+  if(alts.length < 2) return '';
+  const W = 600, H = 56, mn = Math.min(...alts) - 50, mx = Math.max(...alts) + 50;
+  const pts = alts.map((a, i) => `${(i * W / (alts.length - 1)).toFixed(1)},${(H - 4 - (a - mn) / (mx - mn) * (H - 10)).toFixed(1)}`).join(' L');
+  return `<div class="spark"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="Výškový profil">
+    <defs><linearGradient id="sp-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2b64b" stop-opacity=".35"/><stop offset="1" stop-color="#f2b64b" stop-opacity="0"/></linearGradient></defs>
+    <path d="M0,${H} L${pts} L${W},${H}Z" fill="url(#sp-${id})"/><path d="M${pts}" fill="none" stroke="#f2b64b" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg></div>`;
+}
+/* „fotka“ pre príspevky bez fotky — filmová scéna */
+function sceneArt(seed){
+  const r = rng(seed + 'p'), mood = MOOD_LIST[Math.floor(r() * MOOD_LIST.length)], subj = ['stan','chata','sirak',null][Math.floor(r() * 4)];
+  return svgWrap(400, 500, scene(seed, { w:400, h:500, mood, subject:subj, subjectX:400 * (.3 + r() * .4), subjectScale:34 }));
+}
+const avatarColor = name => `hsl(${Math.floor(rng(name)() * 360)},32%,44%)`;
+const fmtDate = iso => { try{ return new Date(iso).toLocaleDateString('sk-SK', { day:'numeric', month:'long', year:'numeric' }); }catch(e){ return iso; } };
+
+/* príspevky: ukážkové + vlastné (vlastné sa ukladajú v prehliadači) */
+const samplePosts = UKAZKOVE_PRISPEVKY.map(u => {
+  const t = TRASY.find(x => x.id === u.trasa);
+  return { id:u.id, author:u.autor, title:u.nazov, text:u.text, photo:u.fotka || null, points:t.zastavky, pohorie:t.pohorie,
+    km:null, cas:u.cas, prevysenie:routeAscent(t), date:u.datum, state:u.stav, challenge:VYZVY[u.vyzva] || '', likes:u.lajky,
+    comments:u.komentare.map(([a,t]) => ({ a, t })), sample:true };
+});
+const userPosts = store.get('uvh_posts', []);
+const likes = store.get('uvh_likes', {});
+const extraComments = store.get('uvh_comments', {});
+let me = store.get('uvh_me', '');
+let feedFilter = '';
+const allPosts = () => [...userPosts, ...samplePosts].sort((a, b) => b.date.localeCompare(a.date));
+const persistPosts = () => store.set('uvh_posts', userPosts) || store.set('uvh_posts', userPosts.map(p => ({ ...p, photo:null })));
+
+function postHTML(p){
+  const st = postStats(p), liked = !!likes[p.id], comments = [...(p.comments || []), ...(extraComments[p.id] || [])];
+  const places = p.points.filter(placeById).map(id => `<button class="stop-pill t-${placeById(id).typ}" data-open="${id}">🛖 ${esc(placeById(id).nazov)}</button>`).join('');
+  const photo = p.photo ? `<img src="${esc(p.photo)}" alt="${esc(p.title)}" loading="lazy">` : sceneArt(p.id) + (p.sample ? '<span class="badge">ukážka</span>' : '');
+  return `<article class="post" data-post="${p.id}">
+    <div class="post-head">
+      <div class="avatar" style="background:${avatarColor(p.author)}">${esc(p.author.charAt(0).toUpperCase())}</div>
+      <div class="who"><b>${esc(p.author)}${p.sample ? ' <span class="tag t-stan" style="font-size:.68rem">ukážka</span>' : ''}</b>
+        <small>${fmtDate(p.date)} · ${esc(p.pohorie || '')}</small></div>
+      ${p.own ? `<button class="act" data-del="${p.id}" aria-label="Zmazať príspevok">🗑</button>` : ''}
+    </div>
+    <div class="media">
+      <div class="media-track">
+        <div class="slide-m">${photo}
+          <div class="sticker">
+            <div class="nums"><div><small>Vzdialenosť</small><b>${st.km} km</b></div><div><small>Prevýšenie</small><b>${st.up != null ? st.up + ' m' : '—'}</b></div>
+              <div><small>Čas</small><b>${esc(st.cas)}</b></div><div><small>Noci</small><b>${st.nights}</b></div></div>
+            <svg viewBox="0 0 200 200">${routeCurve(p.points, 200, 200, { pad:26, width:2.2, halo:'rgba(0,0,0,.3)', labels:'small' })}</svg></div>
+        </div>
+        <div class="slide-m map-slide topo"><svg viewBox="0 0 400 500" preserveAspectRatio="xMidYMid meet">${routeCurve(p.points, 400, 500, { pad:70, width:5, stroke:'#f2b64b', halo:'rgba(0,0,0,.5)', labels:true })}</svg>
+          <span class="map-note">Schematická trasa · polohy približné</span></div>
+      </div>
+      <div class="media-dots"><button class="on" data-slide="0">Fotka</button><button data-slide="1">Trasa</button></div>
+    </div>
+    ${sparkline(st.alts, p.id)}
+    <div class="post-body">
+      <h3>${esc(p.title)}</h3>
+      ${p.text ? `<p>${esc(p.text)}</p>` : ''}
+      <div class="row">${places}</div>
+      <div class="row" style="margin-top:8px"><span class="tag">Stav trasy: ${esc(p.state)}</span>${p.challenge ? `<span class="tag t-sirak">🎯 ${esc(p.challenge)}</span>` : ''}</div>
+    </div>
+    <div class="post-actions">
+      <button class="act ${liked ? 'liked' : ''}" data-like="${p.id}" aria-pressed="${liked}"><span class="heart">${liked ? '♥' : '♡'}</span> ${(p.likes || 0) + (liked ? 1 : 0)}</button>
+      <button class="act" data-focuscomment="${p.id}">💬 ${comments.length}</button>
+      <button class="act" data-postsave="${p.id}" style="margin-left:auto">⤓ Uložiť trasu</button>
+    </div>
+    <div class="comments">
+      ${comments.map(c => `<div class="comment"><b>${esc(c.a)}</b>${esc(c.t)}</div>`).join('')}
+      <form class="comment-form" data-comment="${p.id}"><input placeholder="Pridaj komentár…" maxlength="300" aria-label="Komentár"><button class="btn small">Odoslať</button></form>
+    </div>
+  </article>`;
+}
+function renderFeed(){
+  const feedChips = $('#feedChips'), feed = $('#feed'), meCard = $('#meCard'), challengeList = $('#challengeList');
+  if(!feedChips || !feed || !meCard || !challengeList) return;
+  feedChips.innerHTML = ['', ...POHORIA].map(r => `<button class="chip" data-ff="${r}" aria-pressed="${r === feedFilter}">${r || 'Všetko'}</button>`).join('');
+  const list = allPosts().filter(p => !feedFilter || p.pohorie === feedFilter);
+  feed.innerHTML = list.length ? list.map(postHTML).join('') : '<div class="empty">Zatiaľ tu nie je žiadny zážitok. Buď prvý/á!</div>';
+  $$('#feed .media-track').forEach(tr => tr.addEventListener('scroll', () => {
+    const i = Math.round(tr.scrollLeft / tr.clientWidth);
+    $$('.media-dots button', tr.parentElement).forEach((b, n) => b.classList.toggle('on', n === i));
+  }, { passive:true }));
+  const mine = userPosts.length;
+  meCard.innerHTML = `<div class="avatar" style="width:64px;height:64px;font-size:1.5rem;background:${avatarColor(me || 'Ty')}">${esc((me || 'Ty').charAt(0).toUpperCase())}</div>
+    <div><b style="font-size:1.1rem">${esc(me || 'Tvoj profil')}</b><br><small class="muted">${mine} ${mine === 1 ? 'príspevok' : mine > 1 && mine < 5 ? 'príspevky' : 'príspevkov'} · ${state.routes.length} uložených trás</small></div>
+    <button class="btn" data-newpost style="width:100%">+ Nový príspevok</button>`;
+  const all = allPosts();
+  challengeList.innerHTML = VYZVY.map(c => `<li>${esc(c)} <span>${all.filter(p => p.challenge === c).length} ×</span></li>`).join('');
+}
+const feedChips = $('#feedChips'); if(feedChips) feedChips.addEventListener('click', e => { const b = e.target.closest('[data-ff]'); if(b){ feedFilter = b.dataset.ff; renderFeed(); } });
+
+/* akcie v príspevkoch */
+const feedRoot = $('#feed');
+if (feedRoot) {
+  feedRoot.addEventListener('click', e => {
+    const t = e.target;
+    const sl = t.closest('[data-slide]');
+    if (sl) {
+      const tr = $('.media-track', sl.closest('.media'));
+      tr.scrollTo({ left: tr.clientWidth * +sl.dataset.slide, behavior: 'smooth' });
+      return;
+    }
+
+    const lk = t.closest('[data-like]');
+    if (lk) {
+      const id = lk.dataset.like;
+      likes[id] ? delete likes[id] : likes[id] = true;
+      store.set('uvh_likes', likes);
+      const p = allPosts().find(x => x.id === id), on = !!likes[id];
+      lk.classList.toggle('liked', on);
+      lk.setAttribute('aria-pressed', on);
+      lk.innerHTML = `<span class="heart">${on ? '♥' : '♡'}</span> ${(p.likes || 0) + (on ? 1 : 0)}`;
+      return;
+    }
+
+    const fc = t.closest('[data-focuscomment]');
+    if (fc) {
+      $(`[data-comment="${fc.dataset.focuscomment}"] input`).focus();
+      return;
+    }
+
+    const sv = t.closest('[data-postsave]');
+    if (sv) {
+      const p = allPosts().find(x => x.id === sv.dataset.postsave), stops = p.points.filter(placeById);
+      if (!stops.length) {
+        toast('Táto trasa nemá žiadny nocľah na uloženie.');
+        return;
+      }
+      newRoute(p.title, stops);
+      toast(`„${p.title}“ je uložená v Mojich trasách`);
+      return;
+    }
+
+    const dl = t.closest('[data-del]');
+    if (dl) {
+      if (dl.dataset.confirm !== '1') {
+        dl.dataset.confirm = '1';
+        dl.textContent = 'Naozaj zmazať?';
+        return;
+      }
+      const i = userPosts.findIndex(x => x.id === dl.dataset.del);
+      if (i > -1) userPosts.splice(i, 1);
+      persistPosts();
+      renderFeed();
+      toast('Príspevok zmazaný');
+    }
+  });
+
+  feedRoot.addEventListener('submit', e => {
+    const f = e.target.closest('[data-comment]');
+    if (!f) return;
+    e.preventDefault();
+    const text = $('input', f).value.trim();
+    if (!text) return;
+    const id = f.dataset.comment;
+    (extraComments[id] = extraComments[id] || []).push({ a: me || 'Ty', t: text });
+    store.set('uvh_comments', extraComments);
+    const wrap = f.closest('.post'), html = postHTML(allPosts().find(x => x.id === id));
+    wrap.outerHTML = html;
+    renderFeedDotsFix();
+  });
+}
+
+const renderFeedDotsFix = () => $$('#feed .media-track').forEach(tr => {
+  if (tr._b) return;
+  tr._b = 1;
+  tr.addEventListener('scroll', () => {
+    const i = Math.round(tr.scrollLeft / tr.clientWidth);
+    $$('.media-dots button', tr.parentElement).forEach((b, n) => b.classList.toggle('on', n === i));
+  }, { passive: true });
+});
+
+/* nový príspevok — formulár v modálnom okne */
+let draftPhoto = null;
+function openComposer(){
+  draftPhoto = null;
+  const opts = routeSources().filter(g => g.items.length).map(g => `<optgroup label="${g.group}">${g.items.map(i => `<option value="${i.key}">${esc(i.label)}</option>`).join('')}</optgroup>`).join('');
+  const preset = activeRoute() && activeRoute().stops.length ? 'moja:' + activeRoute().id : 'trasa:' + TRASY[0].id;
+  openModal(`<form class="modal-body" id="postForm">
+    <span class="eyebrow" style="margin:0">Zážitky</span>
+    <h2 id="modalTitle" style="margin:0">Nový príspevok</h2>
+    <label class="drop" for="pPhoto"><span id="pDropTxt">📷 Pridaj fotku z túry</span><input type="file" id="pPhoto" accept="image/*" hidden></label>
+    <div class="form-grid">
+      <label class="field">Tvoje meno / prezývka<input id="pAuthor" required maxlength="40" value="${esc(me)}"></label>
+      <label class="field">Dátum túry<input id="pDate" type="date" required value="${new Date().toISOString().slice(0,10)}"></label>
+      <label class="field full">Názov<input id="pTitle" required maxlength="80" placeholder="napr. Víkend na hrebeni Fatry"></label>
+      <label class="field full">Trasa<select id="pRoute">${opts}</select></label>
+      <div class="full route-preview" id="pPreview"></div>
+      <label class="field">Vzdialenosť (km)<input id="pKm" inputmode="decimal" placeholder="z hodiniek / Mapy.cz"></label>
+      <label class="field">Čas<input id="pCas" maxlength="20" placeholder="napr. 6:30 h alebo 2 dni"></label>
+      <label class="field full">Ako to bolo?<textarea id="pText" maxlength="600" placeholder="Pár viet — čo ťa prekvapilo, čo by si poradil/a ďalším."></textarea></label>
+      <label class="field">Stav trasy<select id="pState"><option>Suchá, bez problémov</option><option>Blato / mokro</option><option>Sneh alebo ľad</option><option>Popadané stromy / zle značená</option></select></label>
+      <label class="field">Splnená výzva<select id="pChallenge"><option value="">— bez výzvy —</option>${VYZVY.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>
+    </div>
+    <button class="btn" type="submit">Zverejniť</button>
+  </form>`);
+  const sel = $('#pRoute'); if(findSource(preset)) sel.value = preset;
+  const preview = () => {
+    const src = findSource(sel.value), st = postStats({ points:src.points });
+    $('#pPreview').innerHTML = `<svg viewBox="0 0 110 110">${routeCurve(src.points, 110, 110, { pad:12, width:2.5 })}</svg>
+      <div><b>${esc(src.label)}</b><br><small style="opacity:.8">~${st.km} km vzdušne · ${st.up != null ? '↑ ' + st.up + ' m · ' : ''}${st.nights} noci</small></div>`;
+  };
+  sel.addEventListener('change', preview); preview();
+  $('#pPhoto').addEventListener('change', async e => {
+    draftPhoto = await readPhoto(e.target.files[0], 900);
+    if(!draftPhoto) return;
+    $('.drop img')?.remove();                         // vstup ostáva, fotka sa dá vymeniť
+    const im = new Image(); im.src = draftPhoto; im.alt = 'Náhľad fotky'; $('.drop').prepend(im);
+  });
+  $('#postForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const src = findSource(sel.value), kmv = parseFloat($('#pKm').value.replace(',', '.'));
+    me = $('#pAuthor').value.trim(); store.set('uvh_me', me);
+    const st = postStats({ points:src.points });
+    userPosts.unshift({ id:uid(), own:true, author:me, title:$('#pTitle').value.trim(), text:$('#pText').value.trim(), photo:draftPhoto,
+      points:[...src.points], pohorie:src.pohorie, km: isFinite(kmv) && kmv > 0 ? kmv : null, cas:$('#pCas').value.trim(),
+      prevysenie: st.up, date:$('#pDate').value, state:$('#pState').value, challenge:$('#pChallenge').value, likes:0, comments:[] });
+    if(!persistPosts()) toast('Príspevok je zverejnený, no prehliadač ho neuloží natrvalo.');
+    else toast('Príspevok zverejnený ✓');
+    const zazitkyPage = $('#page-zazitky');
+    if (zazitkyPage && !zazitkyPage.classList.contains('active')) {
+      showPage('zazitky');
+    }
+    renderFeed();
+  });
+}
+document.addEventListener('click', e => { if(e.target.closest('[data-newpost]')) openComposer(); });
+
+/* zmenšenie fotky pred uložením */
+function readPhoto(file, max=640){
+  return new Promise(res => {
+    if(!file) return res(null);
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const c = document.createElement('canvas'), s = Math.min(1, max / img.width);
+      c.width = img.width * s; c.height = img.height * s; c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', .75));
+    };
+    img.onerror = () => res(null); img.src = url;
+  });
+}
+
+/* ===== O projekte — grafy ===== */
+function bars(el, rows, max, fmt){
+  const t = $(el); if(!t) return;
+  t.innerHTML = rows.map(([l,v]) => `<div class="bar"><span>${l}</span><div class="track"><div class="fill" data-w="${v/max*100}"></div></div><b>${fmt(v)}</b></div>`).join('');
+}
+
+/* ===== Štart ===== */
+/* naplní všetky zoznamy miest (po pridaní nového miesta sa volá znova) */
+function rerenderPlaces(){
+  const opts = POHORIA.map(rg => `<optgroup label="${rg}">${MIESTA.filter(p => p.pohorie === rg).map(p => `<option value="${p.id}">${esc(p.nazov)}</option>`).join('')}</optgroup>`).join('');
+  $('#fxPlace').innerHTML = opts;
+  renderCarousel(); renderHome(); renderTypeGroups();
+  if($('#mapPlacesList')) $('#mapPlacesList').innerHTML = filtered().length ? filtered().map(placeCard).join('') : '<div class="empty">Nič nevyhovuje filtrom. Skús ich uvoľniť — niektoré údaje ešte overujeme.</div>';
+  $('#mapPresets').innerHTML = presets().map((p, i) => `<button class="chip" data-preset="${i}">${p.label}</button>`).join('');
+  $$('#mapPresets .chip').forEach(b => b.addEventListener('click', () => zoomPreset(+b.dataset.preset)));
+}
+function init(){
+  try{ history.scrollRestoration = 'manual'; }catch(e){}
+  const aTyp = $('#aTyp'); if(aTyp) aTyp.innerHTML = Object.entries(TYPY).map(([k,t]) => `<option value="${k}">${t.nazov}</option>`).join('');
+  const aPohorie = $('#aPohorie'); if(aPohorie) aPohorie.innerHTML = POHORIA.map(r => `<option>${r}</option>`).join('');
+  const footNav = $('#footNav'); if(footNav) footNav.innerHTML = $$('#mainNav button').map(b => `<button data-goto="${b.dataset.goto}">${b.textContent}</button>`).join('');
+  const banner = $('#banner'); if(banner) banner.insertAdjacentHTML('afterend', '');
+  bars('#barsSources', [['Mapy.cz',88],['Počasie',60],['Kamaráti',52],['Vlaky',48]], 100, v => v + ' %');
+  bars('#barsRatings', [['Mapy.cz',4.0],['Google',3.0],['ChatGPT',2.9],['AllTrails',2.7],['Instagram/TikTok',2.4]], 5, v => v.toFixed(1));
+
+  // banner „prvá noc“ a les v pätičke
+  if($('#banner')) $('#banner').insertAdjacentHTML('afterbegin', svgWrap(1400, 720, scene('banner', { w:1400, h:720, mood:'noc', subject:'stan', subjectX:1040, subjectScale:70, lightX:1180, lightY:120 }), '', 'xMaxYMax'));
+  const footRidge = $('#footRidge'); if(footRidge) footRidge.innerHTML = `<svg class="ridge" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">${forest(rng('foot'), 122, -10, 1210, 40, 110, 'var(--forest)')}<rect y="110" width="1200" height="12" fill="var(--forest)"/></svg>`;
+  const carPrev = $('#carPrev'); if(carPrev) carPrev.addEventListener('click', () => goSlide(carIdx - 1));
+  const carNext = $('#carNext'); if(carNext) carNext.addEventListener('click', () => goSlide(carIdx + 1));
+  const carPause = $('#carPause'); if(carPause) carPause.addEventListener('click', () => {
+    carPaused = !carPaused; carPause.textContent = carPaused ? '▶' : '❚❚';
+    carPause.setAttribute('aria-label', carPaused ? 'Spustiť' : 'Pozastaviť');
+    carPaused ? stopCarousel() : startCarousel();
+  });
+  initFilters(); initMap(); rerenderPlaces(); renderRoutes(); renderFeed(); updateQuiz(); refreshRoutes();
+  setHeaderH();
+  let start='domov'; try{ const h=location.hash.slice(1); if(PAGES.includes(h)) start=h; }catch(e){}
+  showPage(start);
+}
+init();
+</script>
+</body>
+</html>
