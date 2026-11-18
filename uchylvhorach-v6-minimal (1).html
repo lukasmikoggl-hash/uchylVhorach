@@ -1645,53 +1645,62 @@ function ridgeAlt(pts, x){
   for(let i = 1; i < pts.length; i++) if(x <= pts[i][0]){ const [x0,a0] = pts[i-1], [x1,a1] = pts[i]; return a0 + (a1-a0) * (x-x0) / (x1-x0); }
   return pts[pts.length-1][1];
 }
-/* jednoduchý deterministický šum (bez knižnice) — jemné nerovnosti terénu */
-function terrainNoise(x, z, seed){
-  const s = Math.sin(x * 12.9898 + z * 78.233 + seed) * 43758.5453;
-  return s - Math.floor(s);
+/* postaví hrebeň ako skutočnú 3D stenu (vytlačený profilový tvar, nie plochu s kopčekmi vzadu) —
+   len hlavný hrebeň daného pohoria, zblízka, nech to pôsobí ako stena priamo pred tebou */
+/* farebný prechod podľa výšky — od tmavej úpätovej po teplú vrcholovú, z tvojej palety (žiadna textúra, len farba) */
+const RIDGE_GRADIENT = ['#728f78', '#88a68f', '#e4d0b5', '#cfa09c'].map(h => new THREE.Color(h));
+function applyHeightGradient(geo, peakHeight){
+  const pos = geo.attributes.position, n = pos.count;
+  const col = new Float32Array(n * 3), c = new THREE.Color();
+  const steps = RIDGE_GRADIENT.length - 1;
+  for(let i = 0; i < n; i++){
+    const t = Math.max(0, Math.min(1, pos.getY(i) / peakHeight)) * steps;
+    const seg = Math.min(steps - 1, Math.floor(t));
+    c.copy(RIDGE_GRADIENT[seg]).lerp(RIDGE_GRADIENT[seg + 1], t - seg);
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
 }
-/* postaví mriežkový mesh hôr z reálneho hrebeňového profilu (PROFILY[range].body);
-   predné rady = skutočný hrebeň, zadné rady nižšie a jemne rozmazané = vzdialenejšie kopce */
 function buildRangeTerrain(range){
   const body = PROFILY[range].body;
   const alts = body.map(b => b[1]), altMin = Math.min(...alts), altMax = Math.max(...alts);
-  const W = 22, D = 7, segX = 140, segZ = 36;
-  const geo = new THREE.PlaneGeometry(W, D, segX, segZ);
-  geo.rotateX(-Math.PI / 2);
-  const pos = geo.attributes.position;
-  const heightScale = 2.3 / Math.max(1, altMax - altMin);
-  for(let iz = 0; iz <= segZ; iz++){
-    const t = iz / segZ;                         // 0 = predný hrebeň, 1 = najvzdialenejší
-    const recede = 1 - t * .7;
-    for(let ix = 0; ix <= segX; ix++){
-      const idx = iz * (segX + 1) + ix;
-      const xNorm = ix / segX * 1000;
-      const alt = ridgeAlt(body, xNorm);
-      const jitter = (terrainNoise(ix * .4, iz * .4, range.length) - .5) * .22 * (.25 + t);
-      pos.setY(idx, (alt - altMin) * heightScale * recede + jitter);
-    }
+  const W = 15, wallDepth = 1.4, segX = 200;
+  const heightScale = 3.3 / Math.max(1, altMax - altMin);   // výraznejšie prevýšenie — pôsobí ako stena, nie ako kopček
+  const shape = new THREE.Shape();
+  shape.moveTo(-W / 2, 0);
+  for(let i = 0; i <= segX; i++){
+    const xNorm = i / segX * 1000;
+    const x = -W / 2 + i / segX * W;
+    shape.lineTo(x, (ridgeAlt(body, xNorm) - altMin) * heightScale);
   }
+  shape.lineTo(W / 2, 0);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth:wallDepth, bevelEnabled:false, curveSegments:1, steps:1 });
+  geo.translate(0, 0, -wallDepth / 2);
   geo.computeVertexNormals();
-  const mat = new THREE.MeshStandardMaterial({ color:0x8f8f8a, roughness:1, metalness:0, side:THREE.DoubleSide });
+  applyHeightGradient(geo, (altMax - altMin) * heightScale);
+  const mat = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.85, metalness:0, flatShading:true, side:THREE.DoubleSide });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.z = -D * .32;
   mesh.position.y = -1.35;
-  mesh.userData = { body, altMin, heightScale, W };
+  mesh.userData = { body, altMin, heightScale, W, wallDepth };
   return mesh;
 }
-/* jednoduchý mierne zvlnený kopec pre pás chát (dekoratívny, bez reálnych výškových dát) */
+/* rovnaký princíp pre pás chát — mierne zvlnená stena (dekoratívna, bez reálnych výškových dát) */
 function buildHutTerrain(){
-  const W = 22, D = 4;
-  const geo = new THREE.PlaneGeometry(W, D, 90, 16);
-  geo.rotateX(-Math.PI / 2);
-  const pos = geo.attributes.position;
-  for(let i = 0; i < pos.count; i++){
-    const x = pos.getX(i), z = pos.getZ(i);
-    pos.setY(i, Math.max(0, Math.sin(x * .55) * .22 + Math.cos(x * .27 + 1.3) * .14 - z * .05));
+  const W = 15, wallDepth = .9, segX = 160, peak = 1.05;
+  const shape = new THREE.Shape();
+  shape.moveTo(-W / 2, 0);
+  for(let i = 0; i <= segX; i++){
+    const x = -W / 2 + i / segX * W;
+    shape.lineTo(x, Math.max(.05, Math.sin(x * .55) * .5 + Math.cos(x * .27 + 1.3) * .32 + .5));
   }
+  shape.lineTo(W / 2, 0);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth:wallDepth, bevelEnabled:false, curveSegments:1, steps:1 });
+  geo.translate(0, 0, -wallDepth / 2);
   geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0x97978f, roughness:1, metalness:0, side:THREE.DoubleSide }));
-  mesh.position.z = -D * .3;
+  applyHeightGradient(geo, peak);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.85, metalness:0, flatShading:true, side:THREE.DoubleSide }));
   return mesh;
 }
 /* spoločný stroj: canvas + scéna/kamera/svetlo + vykresľovacia slučka + mierny parallax pri pohybe myšou */
@@ -1699,7 +1708,7 @@ function makeSpatialStage(canvas){
   const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(42, 1, .1, 100);
+  const camera = new THREE.PerspectiveCamera(58, 1, .1, 100);
   scene.add(new THREE.AmbientLight(0xffffff, .5));
   const sun = new THREE.DirectionalLight(0xffffff, 1);
   sun.position.set(-5, 7, 4);
@@ -1708,7 +1717,7 @@ function makeSpatialStage(canvas){
   fill.position.set(4, 3, -5);
   scene.add(fill);
   let mesh = null, mouseX = 0, mouseY = 0, raf = null, lastW = 0, lastH = 0;
-  const baseCam = { x:0, y:1.55, z:6.4, lx:0, ly:1.05, lz:-2 };
+  const baseCam = { x:0, y:1.4, z:5.6, lx:0, ly:1.3, lz:0 };
   function resize(){
     const r = canvas.getBoundingClientRect();
     if(r.width < 2 || r.height < 2) return;
@@ -1729,8 +1738,8 @@ function makeSpatialStage(canvas){
   canvas.addEventListener('mouseleave', () => { mouseX = 0; mouseY = 0; });
   function loop(){
     raf = requestAnimationFrame(loop);
-    camera.position.x += (baseCam.x + mouseX * .55 - camera.position.x) * .04;
-    camera.position.y += (baseCam.y - mouseY * .22 - camera.position.y) * .04;
+    camera.position.x += (baseCam.x + mouseX * .32 - camera.position.x) * .04;
+    camera.position.y += (baseCam.y - mouseY * .16 - camera.position.y) * .04;
     camera.position.z = baseCam.z;
     camera.lookAt(baseCam.lx, baseCam.ly, baseCam.lz);
     resize();
@@ -1758,10 +1767,10 @@ function visibleHalfWidthAt(camera, worldZ){
   return dist * Math.tan(hFov / 2);
 }
 function pointWorldPos(mesh, xNorm, altMeters, halfWidth){
-  const { altMin, heightScale } = mesh.userData;
+  const { altMin, heightScale, wallDepth } = mesh.userData;
   const worldX = (xNorm / 1000 - .5) * 2 * halfWidth;
-  const worldY = (altMeters != null ? (altMeters - altMin) * heightScale + .07 : .3) + mesh.position.y;
-  return new THREE.Vector3(worldX, worldY, mesh.position.z);
+  const worldY = (altMeters != null ? (altMeters - altMin) * heightScale + .1 : .3) + mesh.position.y;
+  return new THREE.Vector3(worldX, worldY, mesh.position.z + wallDepth / 2 + .05);
 }
 /* HTML pečiatka (palička + bodka + štítok) nad bodom premietnutým z 3D do 2D */
 /* panoráma-štýl: štítok sedí v spoločnom riadku (topRow) a tenká čiarka vedie rovno dolu k vrcholu */
@@ -1844,8 +1853,8 @@ function renderHutStrip(){
     items = huts.map((p, i) => {
       const xNorm = huts.length > 1 ? i / (huts.length - 1) * 1000 : 500;
       const worldX = (xNorm / 1000 - .5) * 2 * halfW;
-      const terrainY = Math.max(0, Math.sin(worldX * .55) * .22 + Math.cos(worldX * .27 + 1.3) * .14) + .06;
-      return { pos:new THREE.Vector3(worldX, terrainY, mesh.position.z), label:p.nazov, id:p.id };
+      const terrainY = Math.max(.05, Math.sin(worldX * .55) * .5 + Math.cos(worldX * .27 + 1.3) * .32 + .5) + .08;
+      return { pos:new THREE.Vector3(worldX, terrainY, mesh.position.z + .9 / 2 + .05), label:p.nazov, id:p.id };
     });
     pinEls = renderPins($('#hutPins'), items.map(it => ({ label:it.label, attr:`data-open="${it.id}"` })));
   };
