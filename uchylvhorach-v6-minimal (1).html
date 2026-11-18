@@ -1633,7 +1633,7 @@ document.addEventListener('click', e => {
 });
 
 /* ===== Domov: hero s profilmi pohorí ===== */
-const altY = a => 540 - (a - 500) / 2200 * 250;          // výška v m → y v ilustrácii (hory v dolnej polovici)
+const altY = a => 400 - (a - 300) / 1800 * 260;          // výška v m → y v ilustrácii (prispôsobené výške hero SVG, 420px)
 function ridgeAlt(pts, x){
   for(let i = 1; i < pts.length; i++) if(x <= pts[i][0]){ const [x0,a0] = pts[i-1], [x1,a1] = pts[i]; return a0 + (a1-a0) * (x-x0) / (x1-x0); }
   return pts[pts.length-1][1];
