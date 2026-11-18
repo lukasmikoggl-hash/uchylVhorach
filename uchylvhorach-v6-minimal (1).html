@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>uchýlVhorách — plánovač viacdňových túr</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <!--
   ╔══════════════════════════════════════════════════════════════════╗
   ║  uchýlVhorách — MVP prototyp (v5)                                ║
@@ -553,20 +554,23 @@ header{background:rgba(241,238,230,.92);border-bottom:1px solid var(--glass-line
 .car-ctrl .icon-btn{background:var(--surface-2);border-color:var(--line);color:var(--ink)}
 .car-dots button{background:var(--line)}
 .car-dots button.on{background:var(--pin-d)}
-/* „spatial scene“ body hory: jemný parallax pri pohybe myšou */
-#slides [data-depth]{transition:transform .5s cubic-bezier(.2,.8,.2,1)}
-.hero-pin{cursor:pointer}
-.hero-pin-lbl{font:700 10px var(--font-body);letter-spacing:.08em;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round}
-.hero-pin:hover .hero-pin-lbl{text-decoration:underline}
+/* „spatial scene“ — skutočný 3D terén (three.js) + HTML pečiatky na vrcholoch/chatách */
+#heroCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+.hero-pins{position:absolute;inset:0;z-index:3;pointer-events:none}
+/* štýl „panoráma s popismi“ (PeakFinder/PeakVisor): tenká čiarka rovno z vrcholu nahor k riadku štítkov */
+.hero-pins .pin{position:absolute;display:flex;flex-direction:column;align-items:center;transform:translateX(-50%);
+  pointer-events:none;transition:opacity .25s;background:none;border:0;padding:0;margin:0;font:inherit;outline-offset:2px}
+.hero-pins .pin .lbl{pointer-events:auto;cursor:pointer;background:none;border:0;padding:1px 0 3px;font:600 10px var(--font-body);
+  letter-spacing:.02em;white-space:nowrap;color:var(--ink)}
+.hero-pins .pin .line{width:1px;background:rgba(31,42,36,.45)}
+.hero-pins .pin:hover .lbl,.hero-pins .pin:focus-within .lbl{color:var(--pin-d);text-decoration:underline}
+.hero-pins .pin:hover .line{background:var(--pin-d)}
 .route-card.point-hit{outline:3px solid var(--pin-c);outline-offset:4px}
-.hut-strip{background:#fff;border-radius:var(--radius-lg);overflow:hidden;margin:20px 0}
-.hut-strip svg{width:100%;height:auto;display:block}
-.hero h1 em{color:var(--glow)}
-.hero .lead{text-shadow:none;letter-spacing:.02em}
-.range-name{font-weight:300;letter-spacing:.2em;text-shadow:none;font-stretch:normal}
+.hut-strip{position:relative;height:220px;background:#fff;border-radius:var(--radius-lg);overflow:hidden;margin:20px 0}
+#hutCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+.range-name{letter-spacing:.2em;font-stretch:normal}
 .range-name small{letter-spacing:.28em}
-.car-ctrl .icon-btn{background:transparent;border-radius:2px}
-.car-dots button{height:2px}
+.car-ctrl .icon-btn{border-radius:2px}
 .anno{letter-spacing:.2em;font-weight:600}
 .slide{transition:opacity .6s ease}
 .banner{min-height:clamp(380px,56vh,520px);margin:0}
@@ -640,7 +644,8 @@ footer p{color:rgba(255,255,255,.78)}
 <!-- ═════════ DOMOV ═════════ -->
 <div class="page" id="page-domov">
   <div class="hero" id="hero" aria-roledescription="karusel" aria-label="Profily pohorí">
-    <div id="slides"></div>
+    <canvas id="heroCanvas"></canvas>
+    <div class="hero-pins" id="heroPins" aria-label="Vrcholy na kliknutie"></div>
     <div class="hero-copy">
       <div class="wrap">
         <span class="eyebrow">Viacdňové túry po Slovensku</span>
@@ -679,7 +684,10 @@ footer p{color:rgba(255,255,255,.78)}
     <div class="wrap">
       <div class="section-head"><span class="eyebrow">Naprieč trasami</span><h2>Chaty a útulne</h2>
         <p>Klikni na chatu pre detail — rovnaký jemný pohyb ako pri pohoriach.</p></div>
-      <div class="hut-strip" id="hutStrip"></div>
+      <div class="hut-strip" id="hutStrip">
+        <canvas id="hutCanvas"></canvas>
+        <div class="hero-pins" id="hutPins" aria-label="Chaty na kliknutie"></div>
+      </div>
     </div>
   </section>
 
@@ -1632,80 +1640,145 @@ document.addEventListener('click', e => {
   if(m){ closeModal(); mapSelected = m.dataset.onmap; showPage('mapa'); focusPlace(m.dataset.onmap); }
 });
 
-/* ===== Domov: hero s profilmi pohorí ===== */
-const altY = a => 400 - (a - 300) / 1800 * 260;          // výška v m → y v ilustrácii (prispôsobené výške hero SVG, 420px)
+/* ===== Domov: hero — skutočný 3D terén (three.js) s klikateľnými bodmi ===== */
 function ridgeAlt(pts, x){
   for(let i = 1; i < pts.length; i++) if(x <= pts[i][0]){ const [x0,a0] = pts[i-1], [x1,a1] = pts[i]; return a0 + (a1-a0) * (x-x0) / (x1-x0); }
   return pts[pts.length-1][1];
 }
-/* pin: palička + bodka + štítok, farba cyklí cez PIN_COLORS. attr = 'data-point="..."' alebo 'data-open="..."' */
-function pinMarker(x, y, label, color, attr){
-  return `<g class="hero-pin" ${attr} tabindex="0" role="button" aria-label="${esc(label)}"><title>${esc(label)}</title>
-    <line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y - 26).toFixed(1)}" stroke="${color}" stroke-width="1.4"/>
-    <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${color}"/>
-    <text class="hero-pin-lbl" x="${x.toFixed(1)}" y="${(y - 32).toFixed(1)}" text-anchor="middle" fill="${color}">${esc(label).toUpperCase()}</text></g>`;
+/* jednoduchý deterministický šum (bez knižnice) — jemné nerovnosti terénu */
+function terrainNoise(x, z, seed){
+  const s = Math.sin(x * 12.9898 + z * 78.233 + seed) * 43758.5453;
+  return s - Math.floor(s);
 }
-/* „spatial scene“: svetlý terén v 2 vrstvách (far/near) + body na kliknutie — jemný parallax cez [data-depth] */
-function heroScene(range){
-  const pr = PROFILY[range], W = 1000, H = 420;
-  const ridge = [];
-  pr.body.forEach((b, i) => {
-    if(i){ const [x0,a0] = pr.body[i-1]; ridge.push([(x0 + b[0]) / 2, altY((a0 + b[1]) / 2)]); }
-    ridge.push([b[0], altY(b[1])]);
+/* postaví mriežkový mesh hôr z reálneho hrebeňového profilu (PROFILY[range].body);
+   predné rady = skutočný hrebeň, zadné rady nižšie a jemne rozmazané = vzdialenejšie kopce */
+function buildRangeTerrain(range){
+  const body = PROFILY[range].body;
+  const alts = body.map(b => b[1]), altMin = Math.min(...alts), altMax = Math.max(...alts);
+  const W = 22, D = 7, segX = 140, segZ = 36;
+  const geo = new THREE.PlaneGeometry(W, D, segX, segZ);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const heightScale = 2.3 / Math.max(1, altMax - altMin);
+  for(let iz = 0; iz <= segZ; iz++){
+    const t = iz / segZ;                         // 0 = predný hrebeň, 1 = najvzdialenejší
+    const recede = 1 - t * .7;
+    for(let ix = 0; ix <= segX; ix++){
+      const idx = iz * (segX + 1) + ix;
+      const xNorm = ix / segX * 1000;
+      const alt = ridgeAlt(body, xNorm);
+      const jitter = (terrainNoise(ix * .4, iz * .4, range.length) - .5) * .22 * (.25 + t);
+      pos.setY(idx, (alt - altMin) * heightScale * recede + jitter);
+    }
+  }
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ color:0x8f8f8a, roughness:1, metalness:0, side:THREE.DoubleSide });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.z = -D * .32;
+  mesh.position.y = -1.35;
+  mesh.userData = { body, altMin, heightScale, W };
+  return mesh;
+}
+/* jednoduchý mierne zvlnený kopec pre pás chát (dekoratívny, bez reálnych výškových dát) */
+function buildHutTerrain(){
+  const W = 22, D = 4;
+  const geo = new THREE.PlaneGeometry(W, D, 90, 16);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  for(let i = 0; i < pos.count; i++){
+    const x = pos.getX(i), z = pos.getZ(i);
+    pos.setY(i, Math.max(0, Math.sin(x * .55) * .22 + Math.cos(x * .27 + 1.3) * .14 - z * .05));
+  }
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0x97978f, roughness:1, metalness:0, side:THREE.DoubleSide }));
+  mesh.position.z = -D * .3;
+  return mesh;
+}
+/* spoločný stroj: canvas + scéna/kamera/svetlo + vykresľovacia slučka + mierny parallax pri pohybe myšou */
+function makeSpatialStage(canvas){
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, 1, .1, 100);
+  scene.add(new THREE.AmbientLight(0xffffff, .5));
+  const sun = new THREE.DirectionalLight(0xffffff, 1);
+  sun.position.set(-5, 7, 4);
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xffffff, .3);
+  fill.position.set(4, 3, -5);
+  scene.add(fill);
+  let mesh = null, mouseX = 0, mouseY = 0, raf = null, lastW = 0, lastH = 0;
+  const baseCam = { x:0, y:1.55, z:6.4, lx:0, ly:1.05, lz:-2 };
+  function resize(){
+    const r = canvas.getBoundingClientRect();
+    if(r.width < 2 || r.height < 2) return;
+    if(r.width === lastW && r.height === lastH) return;
+    lastW = r.width; lastH = r.height;
+    renderer.setSize(r.width, r.height, false);
+    camera.aspect = r.width / r.height;
+    camera.updateProjectionMatrix();
+    // #page-domov môže byť pri štarte ešte display:none (canvas má 0×0) — keď sa rozmer
+    // skutočne prvýkrát ustáli na reálnu hodnotu, treba prepočítať rozostup bodov
+    stage.onResize && stage.onResize();
+  }
+  canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    mouseX = ((e.clientX - r.left) / r.width - .5) * 2;
+    mouseY = ((e.clientY - r.top) / r.height - .5) * 2;
   });
-  const echoLine = (dy, op, w) => `<path d="${ridge.map(([x,y],i) => (i ? 'L' : 'M') + x.toFixed(1) + ' ' + (y + dy).toFixed(1)).join(' ')}" fill="none" stroke="#cbc8bd" stroke-opacity="${op}" stroke-width="${w}"/>`;
-  const terrain = mountain(ridge, W, H, '#eceadf', '#ffffff', .6);
-
-  const pts = HERO_POINTS[range] || [];
-  const lons = pts.map(p => p.gps[1]);
-  const lonMn = Math.min(...lons), lonMx = Math.max(...lons);
-  const xs = pts.map(p => pts.length > 1 ? 90 + (p.gps[1] - lonMn) / (lonMx - lonMn) * 860 : 500);
-  const pins = pts.map((p, i) => {
-    const x = xs[i], near = xs.some((xj, j) => j !== i && Math.abs(xj - x) < 90);
-    const y = altY(ridgeAlt(pr.body, x)) + 46 + (near && i % 2 ? 24 : 0);
-    return pinMarker(x, y, p.name, PIN_COLORS[i % PIN_COLORS.length], `data-point="${esc(p.name)}"`);
-  }).join('');
-
-  return svgWrap(W, H, `<g data-depth=".08">${echoLine(36, .5, 1.2)}${echoLine(60, .3, 1)}</g>
-    <g data-depth=".16">${terrain}</g>
-    <g data-depth=".4">${pins}</g>`, 'Vrcholy: ' + range, 'xMidYMax');
-}
-/* pás chát/útulní naprieč trasami — rovnaký princíp (palička + bodka + štítok), jemný parallax */
-function hutScene(){
-  const W = 1000, H = 220;
-  const huts = HERO_HUTY.map(id => placeById(id)).filter(Boolean);
-  const base = H - 50;
-  const hill = `<path d="M0 ${base + 18} Q ${W * .25} ${base - 10} ${W * .5} ${base + 10} T ${W} ${base}" fill="none" stroke="#dedad0" stroke-width="1.4"/>`;
-  // rovnomerné rozostupy v danom poradí (nie podľa GPS — niektoré chaty majú takmer rovnakú dĺžku, nálepky by sa prekrývali)
-  const pins = huts.map((p, i) => {
-    const x = 90 + (huts.length > 1 ? i / (huts.length - 1) * 860 : 430);
-    const y = base - (i % 2) * 24;
-    return pinMarker(x, y, p.nazov, PIN_COLORS[i % PIN_COLORS.length], `data-open="${p.id}"`);
-  }).join('');
-  return svgWrap(W, H, `<g data-depth=".1">${hill}</g><g data-depth=".35">${pins}</g>`, 'Chaty a útulne', 'xMidYMid');
-}
-function renderHutStrip(){
-  const el = $('#hutStrip'); if(!el) return;
-  el.innerHTML = hutScene();
-  initSpatialParallax(el);
-}
-/* jemný parallax pri pohybe myšou — posúva [data-depth] vrstvy podľa ich hĺbky */
-function initSpatialParallax(root){
-  let raf = null, tx = 0, ty = 0;
-  const apply = () => {
-    raf = null;
-    root.querySelectorAll('[data-depth]').forEach(g => {
-      const d = parseFloat(g.dataset.depth);
-      g.style.transform = `translate(${(tx * 16 * d).toFixed(1)}px, ${(ty * 10 * d).toFixed(1)}px)`;
-    });
+  canvas.addEventListener('mouseleave', () => { mouseX = 0; mouseY = 0; });
+  function loop(){
+    raf = requestAnimationFrame(loop);
+    camera.position.x += (baseCam.x + mouseX * .55 - camera.position.x) * .04;
+    camera.position.y += (baseCam.y - mouseY * .22 - camera.position.y) * .04;
+    camera.position.z = baseCam.z;
+    camera.lookAt(baseCam.lx, baseCam.ly, baseCam.lz);
+    resize();
+    renderer.render(scene, camera);
+    stage.onFrame && stage.onFrame();
+  }
+  const stage = { renderer, scene, camera, resize,
+    setMesh(m){ if(mesh) scene.remove(mesh); mesh = m; scene.add(m); },
+    start(){ if(!raf) loop(); },
+    stop(){ cancelAnimationFrame(raf); raf = null; },
+    project(vec3){
+      const r = canvas.getBoundingClientRect();
+      const v = vec3.clone().project(camera);
+      return { x:(v.x * .5 + .5) * r.width, y:(1 - (v.y * .5 + .5)) * r.height, behind:v.z > 1 };
+    }
   };
-  root.addEventListener('mousemove', e => {
-    const r = root.getBoundingClientRect();
-    tx = ((e.clientX - r.left) / r.width - .5) * 2;
-    ty = ((e.clientY - r.top) / r.height - .5) * 2;
-    if(!raf) raf = requestAnimationFrame(apply);
+  return stage;
+}
+/* polovičná viditeľná šírka (vo world jednotkách) vo vzdialenosti worldZ od kamery — podľa aktuálneho pomeru strán canvasu.
+   Bez tohto sa body pri úzkom/vysokom canvase posúvajú mimo záber (kamera má užší horizontálny zorný uhol). */
+function visibleHalfWidthAt(camera, worldZ){
+  const dist = Math.abs(camera.position.z - worldZ);
+  const vFov = camera.fov * Math.PI / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  return dist * Math.tan(hFov / 2);
+}
+function pointWorldPos(mesh, xNorm, altMeters, halfWidth){
+  const { altMin, heightScale } = mesh.userData;
+  const worldX = (xNorm / 1000 - .5) * 2 * halfWidth;
+  const worldY = (altMeters != null ? (altMeters - altMin) * heightScale + .07 : .3) + mesh.position.y;
+  return new THREE.Vector3(worldX, worldY, mesh.position.z);
+}
+/* HTML pečiatka (palička + bodka + štítok) nad bodom premietnutým z 3D do 2D */
+/* panoráma-štýl: štítok sedí v spoločnom riadku (topRow) a tenká čiarka vedie rovno dolu k vrcholu */
+function renderPins(container, items){
+  container.innerHTML = items.map(it => `<button class="pin" ${it.attr}>
+    <span class="lbl">${esc(it.label)}</span><span class="line"></span></button>`).join('');
+  return [...container.children];
+}
+function updatePinPositions(stage, pinEls, items, topRow){
+  pinEls.forEach((el, i) => {
+    const p = stage.project(items[i].pos);
+    const line = el.querySelector('.line');
+    el.style.left = p.x.toFixed(1) + 'px';
+    el.style.top = topRow + 'px';
+    line.style.height = Math.max(3, p.y - topRow).toFixed(1) + 'px';
+    el.style.opacity = p.behind ? '0' : '1';
   });
-  root.addEventListener('mouseleave', () => { tx = 0; ty = 0; if(!raf) raf = requestAnimationFrame(apply); });
 }
 /* klik na vrchol: skočí na pás trás a zvýrazní tie, čo cezeň vedú */
 function jumpToPoint(name){
@@ -1720,26 +1793,67 @@ function jumpToPoint(name){
   setTimeout(() => $$('#homeRoutes .route-card.point-hit').forEach(c => c.classList.remove('point-hit')), 3200);
 }
 
-let carIdx = 0, carTimer = null, carPaused = false;
+let carIdx = 0, carTimer = null, carPaused = false, heroStage = null, heroPinEls = [], heroPinItems = [];
 function renderCarousel(){
-  $('#slides').innerHTML = HERO_RANGES.map((rg, n) => `<div class="slide ${n ? '' : 'on'}" aria-hidden="${!!n}">${heroScene(rg)}</div>`).join('');
+  if(!window.THREE){ console.warn('THREE sa nenačítalo, 3D hero preskočený'); return; }
+  heroStage = makeSpatialStage($('#heroCanvas'));
+  heroStage.onFrame = () => updatePinPositions(heroStage, heroPinEls, heroPinItems, 26);
   $('#carDots').innerHTML = HERO_RANGES.map((rg, n) => `<button aria-label="${rg}" class="${n ? '' : 'on'}" data-i="${n}"></button>`).join('');
   $$('#carDots button').forEach(b => b.addEventListener('click', () => goSlide(+b.dataset.i)));
-  $$('#slides .hero-pin').forEach(g => g.addEventListener('keydown', e => {
-    if(e.key !== 'Enter' && e.key !== ' ') return;
-    e.preventDefault();
-    if(g.dataset.open) openPlace(g.dataset.open); else if(g.dataset.point) jumpToPoint(g.dataset.point);
-  }));
-  initSpatialParallax($('#hero'));
+  heroStage.start();
   renderHutStrip();
   goSlide(0);
 }
 function goSlide(i){
   carIdx = (i + HERO_RANGES.length) % HERO_RANGES.length;
-  $$('#slides .slide').forEach((s, n) => { s.classList.toggle('on', n === carIdx); s.setAttribute('aria-hidden', n !== carIdx); });
   $$('#carDots button').forEach((b, n) => b.classList.toggle('on', n === carIdx));
   const rg = HERO_RANGES[carIdx], cnt = MIESTA.filter(p => p.pohorie === rg).length;
   $('#rangeName').innerHTML = `<small>${cnt} ${cnt === 1 ? 'miesto' : cnt < 5 ? 'miesta' : 'miest'} na spanie · ilustrácia</small>${rg}`;
+  const canvas = $('#heroCanvas');
+  canvas.style.transition = 'opacity .25s ease'; canvas.style.opacity = '.15';
+  setTimeout(() => {
+    const mesh = buildRangeTerrain(rg);
+    heroStage.setMesh(mesh);
+    const rebuild = () => {
+      const halfW = visibleHalfWidthAt(heroStage.camera, mesh.position.z) * .82;
+      const pts = HERO_POINTS[rg] || [];
+      const lons = pts.map(p => p.gps[1]), lonMn = Math.min(...lons), lonMx = Math.max(...lons);
+      heroPinItems = pts.map(p => {
+        const xNorm = pts.length > 1 ? (p.gps[1] - lonMn) / (lonMx - lonMn) * 1000 : 500;
+        return { pos:pointWorldPos(mesh, xNorm, p.vyska, halfW), label:p.name };
+      });
+      heroPinEls = renderPins($('#heroPins'), heroPinItems.map(it => ({ label:it.label, attr:`data-point="${esc(it.label)}"` })));
+    };
+    // #page-domov môže byť pri prvom vykreslení ešte neviditeľná (canvas 0×0) — resize() to
+    // zachytí a zavolá rebuild znova, hneď ako bude mať canvas reálny rozmer
+    heroStage.onResize = rebuild;
+    heroStage.resize();
+    rebuild();
+    canvas.style.opacity = '1';
+  }, 180);
+}
+function renderHutStrip(){
+  const canvas = $('#hutCanvas'); if(!canvas || !window.THREE) return;
+  const stage = makeSpatialStage(canvas);
+  const mesh = buildHutTerrain();
+  stage.setMesh(mesh);
+  const huts = HERO_HUTY.map(id => placeById(id)).filter(Boolean);
+  let pinEls = [], items = [];
+  const rebuild = () => {
+    const halfW = visibleHalfWidthAt(stage.camera, mesh.position.z) * .82;
+    items = huts.map((p, i) => {
+      const xNorm = huts.length > 1 ? i / (huts.length - 1) * 1000 : 500;
+      const worldX = (xNorm / 1000 - .5) * 2 * halfW;
+      const terrainY = Math.max(0, Math.sin(worldX * .55) * .22 + Math.cos(worldX * .27 + 1.3) * .14) + .06;
+      return { pos:new THREE.Vector3(worldX, terrainY, mesh.position.z), label:p.nazov, id:p.id };
+    });
+    pinEls = renderPins($('#hutPins'), items.map(it => ({ label:it.label, attr:`data-open="${it.id}"` })));
+  };
+  stage.onResize = rebuild;
+  stage.resize();
+  rebuild();
+  stage.onFrame = () => updatePinPositions(stage, pinEls, items, 16);
+  stage.start();
 }
 function startCarousel(){
   stopCarousel();
