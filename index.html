@@ -1330,9 +1330,9 @@ const PROFILY = {
   'Nízke Tatry':  { nalada:'zlata',  objekt:'sirak',
     body:[[0,800],[120,1300],[230,1700],[330,2024,'Chopok'],[400,1850],[470,2043,'Ďumbier'],[560,1700],[660,1500],[780,1946,'Kráľova hoľa'],[880,1300],[1000,800]] },
   'Malá Fatra':   { nalada:'hmla',   objekt:'chata',
-    body:[[0,700],[110,1100],[210,1500],[300,1646,'Chleb'],[360,1550],[430,1709,'Veľký Kriváň'],[520,1450],[620,1610,'Veľký Rozsutec'],[720,1300],[850,1000],[1000,700]] },
+    body:[[0,700],[60,1150],[100,1668,'Malý Kriváň'],[380,1300],[661,1609,'Pekelník'],[770,1480],[900,1709,'Veľký Kriváň'],[1000,700]] },
   'Veľká Fatra':  { nalada:'sumrak', objekt:'stan',
-    body:[[0,700],[150,1200],[270,1574,'Krížna'],[380,1450],[480,1592,'Ostredok'],[580,1450],[680,1532,'Ploská'],[760,1510,'Borišov'],[880,1100],[1000,700]] }
+    body:[[0,750],[60,1050],[100,1574,'Krížna'],[300,1300],[501,1596,'Ostredok'],[700,1250],[900,1510,'Borišov'],[1000,750]] }
 };
 
 /* ── „Spatial scene“ — body na Domove (prehľad vrcholov na kliknutie) ──
@@ -1348,11 +1348,14 @@ const HERO_POINTS = {
     { name:'Kozí chrbát',       gps:[48.9706408, 19.4737044], vyska:null }
   ],
   'Malá Fatra': [
-    { name:'Malý Kriváň', gps:[49.1811222, 18.9930175], vyska:1668 },
-    { name:'Pekelník',    gps:[49.1905886, 19.0183175], vyska:1609 }
+    { name:'Malý Kriváň',  gps:[49.1811222, 18.9930175], vyska:1668 },
+    { name:'Pekelník',     gps:[49.1905886, 19.0183175], vyska:1609 },
+    { name:'Veľký Kriváň', gps:[49.189,     19.030],     vyska:1709 }
   ],
   'Veľká Fatra': [
-    { name:'Kordícky štít', gps:[48.7749481, 19.0112800], vyska:1181 }
+    { name:'Krížna',   gps:[48.87676,   19.07876], vyska:1574 },
+    { name:'Ostredok', gps:[48.89917,   19.08167], vyska:1596 },
+    { name:'Borišov',  gps:[48.941167,  19.0895],  vyska:1510 }
   ]
 };
 /* chaty/útulne naprieč trasami — id z MIESTA, v poradí na pásu */
@@ -1695,6 +1698,15 @@ function bearingTo(from, to){
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
+/* skupina bodov blízko pri sebe má azimuty namiešané okolo 0°/360° (napr. 358°, 1°, 2°) — Math.min/max by to
+   vyhodnotil ako takmer celý kruh. Rozbalí uhly do súvislého pásma okolo ich kruhového priemeru, nech sa dá
+   na nich normálne robiť min/max a lineárne rozloženie na stupnici. */
+function unwrapBearings(bearings){
+  const r = d => d * Math.PI / 180;
+  const sumSin = bearings.reduce((s, b) => s + Math.sin(r(b)), 0), sumCos = bearings.reduce((s, b) => s + Math.cos(r(b)), 0);
+  const mean = (Math.atan2(sumSin, sumCos) * 180 / Math.PI + 360) % 360;
+  return bearings.map(b => mean + (((b - mean + 180) % 360 + 360) % 360 - 180));
+}
 /* pekné okrúhle stupne azimutu v danom rozsahu — pre stupnicu hore, ako na skutočných panorámach vrcholov */
 function degreeTicks(mn, mx){
   const span = mx - mn, step = span > 60 ? 20 : span > 28 ? 10 : 5, out = [];
@@ -1954,7 +1966,7 @@ function goSlide(i){
       // presne ako na turistických panorámach, nie len poradie podľa dĺžky
       const cLat = pts.reduce((s, p) => s + p.gps[0], 0) / pts.length - .07;
       const cLon = pts.reduce((s, p) => s + p.gps[1], 0) / pts.length;
-      const bearings = pts.map(p => bearingTo([cLat, cLon], p.gps));
+      const bearings = unwrapBearings(pts.map(p => bearingTo([cLat, cLon], p.gps)));
       const brMn = Math.min(...bearings), brMx = Math.max(...bearings);
       heroPinItems = pts.map((p, idx) => {
         const xNorm = pts.length > 1 ? (bearings[idx] - brMn) / (brMx - brMn) * 1000 : 500;
@@ -1977,7 +1989,7 @@ function goSlide(i){
       $('#heroPins').querySelectorAll('.tick').forEach(el => el.remove());
       heroTickEls = heroTickItems.map(it => {
         const el = document.createElement('div'); el.className = 'tick';
-        el.innerHTML = `${it.deg}°<span class="mark"></span>`;
+        el.innerHTML = `${Math.round(((it.deg % 360) + 360) % 360)}°<span class="mark"></span>`;
         $('#heroPins').appendChild(el);
         return el;
       });
