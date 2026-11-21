@@ -552,13 +552,12 @@ header::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;
 :root{ --pin-a:#cfa09c; --pin-b:#e4d0b5; --pin-c:#88a68f; --pin-d:#728f78; }
 .hero{height:clamp(460px,66vh,620px);background:#fff}
 .hero::after{display:none}
-/* textový blok sedí priamo na hrebeni hory — jemná svetlá clona za ním, nech je čitateľný nad akoukoľvek časťou terénu */
-.hero-copy>.wrap:first-child{position:relative}
-.hero-copy>.wrap:first-child::before{content:"";position:absolute;left:-28px;right:-10%;top:-20px;bottom:-14px;z-index:-1;pointer-events:none;
-  background:radial-gradient(ellipse 120% 122% at 35% 42%,rgba(255,255,255,.97) 65%,rgba(255,255,255,0) 100%)}
-.hero h1{font-weight:300;font-size:clamp(2rem,5.2vw,3.7rem);letter-spacing:.1em;text-shadow:none;line-height:1.15;color:var(--ink)}
+/* text sedí priamo na hrebeni hory — namiesto plochy za ním len jemná svetlá žiara okolo písmen, nech nezakrýva horu */
+.hero .eyebrow{text-shadow:0 0 8px #fff,0 0 16px #fff}
+.hero h1{font-weight:300;font-size:clamp(2rem,5.2vw,3.7rem);letter-spacing:.1em;line-height:1.15;color:var(--ink);
+  text-shadow:0 0 14px #fff,0 0 28px #fff,0 0 5px #fff}
 .hero h1 em{color:var(--pin-d)}
-.hero .lead{color:var(--ink-soft);text-shadow:none}
+.hero .lead{color:var(--ink-soft);text-shadow:0 0 10px #fff,0 0 20px #fff,0 0 4px #fff}
 .range-name,.range-name small{color:var(--ink);text-shadow:none}
 .range-name small{color:var(--pin-d)}
 .car-ctrl .icon-btn{background:var(--surface-2);border-color:var(--line);color:var(--ink)}
