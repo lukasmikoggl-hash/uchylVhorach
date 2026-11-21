@@ -1321,14 +1321,15 @@ const TRASY = [
 
 /* Profily pohorí pre úvodnú animáciu.
    nalada: noc | sumrak | hmla | zlata;  objekt: stan | chata | utulna | izba | sirak;  body: [poloha 0–1000, výška m, názov vrcholu?] */
+/* treeline = hranica lesa v metroch (pod ňou sa do terénu primieša lesná farba); 0 = bez lesa, celé pohorie pôsobí ako holé skalné steny (Tatry) */
 const PROFILY = {
-  'Vysoké Tatry': { nalada:'noc',    objekt:'stan',
+  'Vysoké Tatry': { nalada:'noc',    objekt:'stan', treeline:0,
     body:[[0,900],[90,1400],[170,1900],[230,2501,'Rysy'],[290,2100],[350,2400],[420,2655,'Gerlachovský štít'],[480,2200],[540,2450],[610,2634,'Lomnický štít'],[680,2100],[760,2300],[850,1600],[1000,900]] },
-  'Nízke Tatry':  { nalada:'zlata',  objekt:'sirak',
+  'Nízke Tatry':  { nalada:'zlata',  objekt:'sirak', treeline:1550,
     body:[[0,800],[120,1300],[230,1700],[330,2024,'Chopok'],[400,1850],[470,2043,'Ďumbier'],[560,1700],[660,1500],[780,1946,'Kráľova hoľa'],[880,1300],[1000,800]] },
-  'Malá Fatra':   { nalada:'hmla',   objekt:'chata',
+  'Malá Fatra':   { nalada:'hmla',   objekt:'chata', treeline:1500,
     body:[[0,700],[110,1100],[210,1500],[300,1646,'Chleb'],[360,1550],[430,1709,'Veľký Kriváň'],[520,1450],[620,1610,'Veľký Rozsutec'],[720,1300],[850,1000],[1000,700]] },
-  'Veľká Fatra':  { nalada:'sumrak', objekt:'stan',
+  'Veľká Fatra':  { nalada:'sumrak', objekt:'stan', treeline:1600,
     body:[[0,700],[150,1200],[270,1574,'Krížna'],[380,1450],[480,1592,'Ostredok'],[580,1450],[680,1532,'Ploská'],[760,1510,'Borišov'],[880,1100],[1000,700]] }
 };
 
@@ -1706,14 +1707,20 @@ function ridgeAlt(pts, x){
    len hlavný hrebeň daného pohoria, zblízka, nech to pôsobí ako stena priamo pred tebou */
 /* farebný prechod podľa výšky — od tmavej úpätovej po teplú vrcholovú, z tvojej palety (žiadna textúra, len farba) */
 const RIDGE_GRADIENT = ['#55564f', '#84847c', '#b7b7ae', '#e8e7df'].map(h => new THREE.Color(h));
-function applyHeightGradient(geo, peakHeight){
+/* lesný prechod — tmavá machová zeleň pri úpätí, vyjasňuje sa smerom k hranici lesa (potom preberá RIDGE_GRADIENT) */
+const FOREST_GRADIENT = ['#2e3527', '#4b5a3d', '#76816a'].map(h => new THREE.Color(h));
+function gradientColor(ramp, t){
+  const steps = ramp.length - 1, tt = Math.max(0, Math.min(1, t)) * steps, seg = Math.min(steps - 1, Math.floor(tt));
+  return new THREE.Color().copy(ramp[seg]).lerp(ramp[seg + 1], tt - seg);
+}
+function applyHeightGradient(geo, peakHeight, forestMix){
   const pos = geo.attributes.position, n = pos.count;
-  const col = new Float32Array(n * 3), c = new THREE.Color();
-  const steps = RIDGE_GRADIENT.length - 1;
+  const col = new Float32Array(n * 3);
   for(let i = 0; i < n; i++){
-    const t = Math.max(0, Math.min(1, pos.getY(i) / peakHeight)) * steps;
-    const seg = Math.min(steps - 1, Math.floor(t));
-    c.copy(RIDGE_GRADIENT[seg]).lerp(RIDGE_GRADIENT[seg + 1], t - seg);
+    const t = Math.max(0, Math.min(1, pos.getY(i) / peakHeight));
+    const c = gradientColor(RIDGE_GRADIENT, t);
+    const mix = forestMix ? forestMix[i] : 0;
+    if(mix > 0) c.lerp(gradientColor(FOREST_GRADIENT, t / .5), mix);
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -1754,50 +1761,68 @@ function rockTexture(){
   _rockTex = tex;
   return tex;
 }
-/* skutočný 3D povrch (mriežka, nie vytlačený profil) — jemná drsnosť + farebný prechod + kamenistá textúra.
-   Len hlavný hrebeň daného pohoria, zblízka, nech to pôsobí ako stena priamo pred tebou. */
+/* základová doska pod povrchom — bez nej je terén len nekonečne tenká plachta vznášajúca sa vo vzduchu;
+   s ňou je to jeden uzavretý kus, ako skutočný reliéfny model */
+function solidBase(W, D, h){
+  const geo = new THREE.BoxGeometry(W * .985, h, D * .96);
+  const mat = new THREE.MeshStandardMaterial({ color:0x3c3b35, roughness:1, metalness:0 });
+  const box = new THREE.Mesh(geo, mat);
+  box.position.y = -h / 2 + .015;
+  return box;
+}
+/* skutočný 3D povrch (mriežka, nie vytlačený profil) — jemná drsnosť + farebný prechod + kamenistá textúra,
+   na základovej doske, nech to pôsobí ako skutočný kus hôr pred tebou, nie plochý profil zhora. */
 function buildRangeTerrain(range){
-  const body = PROFILY[range].body;
+  const body = PROFILY[range].body, treeline = PROFILY[range].treeline || 0;
   const alts = body.map(b => b[1]), altMin = Math.min(...alts), altMax = Math.max(...alts);
-  const W = 15, D = 2.4, segX = 380, segZ = 46;               // hustá sieť — hladký povrch, nie fazety
+  const W = 15, D = 4.2, segX = 380, segZ = 70;               // hlbší model — má sa vidieť skutočný objem, nielen profil
   const heightScale = 3.3 / Math.max(1, altMax - altMin);   // výraznejšie prevýšenie — pôsobí ako stena, nie ako kopček
   const geo = new THREE.PlaneGeometry(W, D, segX, segZ);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
   const seed = [...range].reduce((s, c) => s + c.charCodeAt(0), 0);
+  const forestMix = new Float32Array(pos.count);              // 1 = zalesnený svah pod hranicou lesa, 0 = holá skala
   for(let i = 0; i < pos.count; i++){
     const xw = pos.getX(i), zw = pos.getZ(i), t = zw / D + .5;      // 0 predný hrebeň .. 1 zadný okraj
     const xNorm = (xw / W + .5) * 1000;
-    const base = (ridgeAlt(body, xNorm) - altMin) * heightScale;
+    const realAlt = ridgeAlt(body, xNorm);                    // skutočná nadmorská výška v danom bode — podľa nej, nie podľa scénickej výšky, určujeme les/skalu
+    const base = (realAlt - altMin) * heightScale;
     const rough = fbm(xw * 2.2 + seed, zw * 2.2) * .42 + fbm(xw * 8 - seed, zw * 8) * .1 + fbm(xw * 24 + seed, zw * 24) * .028;
-    pos.setY(i, Math.max(0, base * (1 - t * .1) + rough));
+    const mix = treeline > 0 ? Math.max(0, Math.min(1, (treeline - realAlt) / 150)) : 0;
+    forestMix[i] = mix;
+    const canopy = mix * fbm(xw * 16 + seed * 3, zw * 16) * .045; // jemná hrbolatosť navyše pod hranicou lesa — pôsobí ako korunové poschodie, nie hladká skala
+    pos.setY(i, Math.max(0, base * (1 - t * .45) + rough + canopy));          // zadná časť citeľne nižšie — vidno, že ide dozadu
   }
   geo.computeVertexNormals();                                 // hladké normály — povrch skalnatý, nie fazetovaný ako drahokam
-  applyHeightGradient(geo, (altMax - altMin) * heightScale);
+  applyHeightGradient(geo, (altMax - altMin) * heightScale, forestMix);
   const mat = new THREE.MeshStandardMaterial({ vertexColors:true, map:rockTexture(), roughness:.96, metalness:0, flatShading:false, side:THREE.DoubleSide });
-  mat.map.repeat.set(20, 4);
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.y = -1.35;
-  mesh.userData = { body, altMin, heightScale, W, wallDepth:D };
-  return mesh;
+  mat.map.repeat.set(20, 6);
+  const surface = new THREE.Mesh(geo, mat);
+  const group = new THREE.Group();
+  group.add(surface, solidBase(W, D, 1.2));
+  group.position.y = -2.3;
+  group.userData = { body, altMin, heightScale, W, wallDepth:D };
+  return group;
 }
 /* rovnaký princíp pre pás chát — mierne zvlnený povrch (dekoratívny, bez reálnych výškových dát) */
 function buildHutTerrain(){
-  const W = 15, D = 1.6, segX = 180, segZ = 12, peak = 1.1;
+  const W = 15, D = 2.6, segX = 240, segZ = 40, peak = 1.1;
   const geo = new THREE.PlaneGeometry(W, D, segX, segZ);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
   for(let i = 0; i < pos.count; i++){
-    const xw = pos.getX(i), zw = pos.getZ(i);
+    const xw = pos.getX(i), zw = pos.getZ(i), t = zw / D + .5;
     const base = Math.max(.05, Math.sin(xw * .55) * .5 + Math.cos(xw * .27 + 1.3) * .32 + .5);
     const rough = fbm(xw * 2.2 + 40, zw * 2.2) * .35 + fbm(xw * 7, zw * 7) * .1;
-    pos.setY(i, Math.max(0, base + rough));
+    pos.setY(i, Math.max(0, base * (1 - t * .45) + rough));
   }
   geo.computeVertexNormals();
   applyHeightGradient(geo, peak);
-  const mat = new THREE.MeshStandardMaterial({ vertexColors:true, map:rockTexture(), roughness:1, metalness:0, flatShading:true, side:THREE.DoubleSide });
-  mat.map.repeat.set(16, 2);
-  const mesh = new THREE.Mesh(geo, mat);
+  const mat = new THREE.MeshStandardMaterial({ vertexColors:true, map:rockTexture(), roughness:1, metalness:0, flatShading:false, side:THREE.DoubleSide });
+  mat.map.repeat.set(16, 3);
+  const surface = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Group();
+  mesh.add(surface, solidBase(W, D, .9));
   mesh.userData = { wallDepth:D };
   return mesh;
 }
@@ -1815,7 +1840,7 @@ function makeSpatialStage(canvas){
   fill.position.set(4, 3, -5);
   scene.add(fill);
   let mesh = null, mouseX = 0, mouseY = 0, raf = null, lastW = 0, lastH = 0;
-  const baseCam = { x:0, y:1.4, z:5.6, lx:0, ly:1.3, lz:0 };
+  const baseCam = { x:0, y:3.8, z:7.4, lx:0, ly:-.6, lz:-.8 };   // šikmý pohľad zhora — vidno skutočný objem, nie plochý profil spredu
   function resize(){
     const r = canvas.getBoundingClientRect();
     if(r.width < 2 || r.height < 2) return;
