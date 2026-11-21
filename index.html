@@ -569,6 +569,10 @@ header::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;
 .hero-pins .pin .lbl{pointer-events:auto;cursor:pointer;background:none;border:0;padding:1px 0 3px;font:600 10px var(--font-body);
   letter-spacing:.02em;white-space:nowrap;color:var(--ink)}
 .hero-pins .pin .line{width:1px;background:rgba(31,42,36,.45)}
+/* stupnica azimutu hore — skutočné kompasové smery, ako na turistických panorámach */
+.hero-pins .tick{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;
+  font:600 9px var(--font-body);color:var(--ink-soft);letter-spacing:.02em;pointer-events:none}
+.hero-pins .tick .mark{width:1px;height:5px;background:var(--ink-soft);opacity:.55;margin-top:2px}
 .hero-pins .pin:hover .lbl,.hero-pins .pin:focus-within .lbl{color:var(--pin-d);text-decoration:underline}
 .hero-pins .pin:hover .line{background:var(--pin-d)}
 .route-card.point-hit{outline:3px solid var(--pin-c);outline-offset:4px}
@@ -1681,6 +1685,19 @@ document.addEventListener('click', e => {
 });
 
 /* ===== Domov: hero — skutočný 3D terén (three.js) s klikateľnými bodmi ===== */
+/* skutočný kompasový azimut (0–360°) z bodu `from` na bod `to`, oba [šírka,dĺžka] */
+function bearingTo(from, to){
+  const r = d => d * Math.PI / 180, lat1 = r(from[0]), lat2 = r(to[0]), dLon = r(to[1] - from[1]);
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+/* pekné okrúhle stupne azimutu v danom rozsahu — pre stupnicu hore, ako na skutočných panorámach vrcholov */
+function degreeTicks(mn, mx){
+  const span = mx - mn, step = span > 60 ? 20 : span > 28 ? 10 : 5, out = [];
+  for(let d = Math.ceil(mn / step) * step; d <= mx; d += step) out.push(d);
+  return out;
+}
 function ridgeAlt(pts, x){
   for(let i = 1; i < pts.length; i++) if(x <= pts[i][0]){ const [x0,a0] = pts[i-1], [x1,a1] = pts[i]; return a0 + (a1-a0) * (x-x0) / (x1-x0); }
   return pts[pts.length-1][1];
@@ -1742,7 +1759,7 @@ function rockTexture(){
 function buildRangeTerrain(range){
   const body = PROFILY[range].body;
   const alts = body.map(b => b[1]), altMin = Math.min(...alts), altMax = Math.max(...alts);
-  const W = 15, D = 2.4, segX = 220, segZ = 20;
+  const W = 15, D = 2.4, segX = 380, segZ = 46;               // hustá sieť — hladký povrch, nie fazety
   const heightScale = 3.3 / Math.max(1, altMax - altMin);   // výraznejšie prevýšenie — pôsobí ako stena, nie ako kopček
   const geo = new THREE.PlaneGeometry(W, D, segX, segZ);
   geo.rotateX(-Math.PI / 2);
@@ -1752,13 +1769,13 @@ function buildRangeTerrain(range){
     const xw = pos.getX(i), zw = pos.getZ(i), t = zw / D + .5;      // 0 predný hrebeň .. 1 zadný okraj
     const xNorm = (xw / W + .5) * 1000;
     const base = (ridgeAlt(body, xNorm) - altMin) * heightScale;
-    const rough = fbm(xw * 2.2 + seed, zw * 2.2) * .5 + fbm(xw * 7 - seed, zw * 7) * .14;
+    const rough = fbm(xw * 2.2 + seed, zw * 2.2) * .42 + fbm(xw * 8 - seed, zw * 8) * .1 + fbm(xw * 24 + seed, zw * 24) * .028;
     pos.setY(i, Math.max(0, base * (1 - t * .1) + rough));
   }
-  geo.computeVertexNormals();
+  geo.computeVertexNormals();                                 // hladké normály — povrch skalnatý, nie fazetovaný ako drahokam
   applyHeightGradient(geo, (altMax - altMin) * heightScale);
-  const mat = new THREE.MeshStandardMaterial({ vertexColors:true, map:rockTexture(), roughness:1, metalness:0, flatShading:true, side:THREE.DoubleSide });
-  mat.map.repeat.set(16, 3);
+  const mat = new THREE.MeshStandardMaterial({ vertexColors:true, map:rockTexture(), roughness:.96, metalness:0, flatShading:false, side:THREE.DoubleSide });
+  mat.map.repeat.set(20, 4);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.y = -1.35;
   mesh.userData = { body, altMin, heightScale, W, wallDepth:D };
@@ -1863,10 +1880,11 @@ function renderPins(container, items){
 function updatePinPositions(stage, pinEls, items, topRow){
   pinEls.forEach((el, i) => {
     const p = stage.project(items[i].pos);
+    const row = topRow + (items[i].lift || 0);
     const line = el.querySelector('.line');
     el.style.left = p.x.toFixed(1) + 'px';
-    el.style.top = topRow + 'px';
-    line.style.height = Math.max(3, p.y - topRow).toFixed(1) + 'px';
+    el.style.top = row + 'px';
+    line.style.height = Math.max(3, p.y - row).toFixed(1) + 'px';
     el.style.opacity = p.behind ? '0' : '1';
   });
 }
@@ -1883,11 +1901,14 @@ function jumpToPoint(name){
   setTimeout(() => $$('#homeRoutes .route-card.point-hit').forEach(c => c.classList.remove('point-hit')), 3200);
 }
 
-let carIdx = 0, carTimer = null, carPaused = false, heroStage = null, heroPinEls = [], heroPinItems = [];
+let carIdx = 0, carTimer = null, carPaused = false, heroStage = null, heroPinEls = [], heroPinItems = [], heroTickEls = [], heroTickItems = [];
 function renderCarousel(){
   if(!window.THREE){ console.warn('THREE sa nenačítalo, 3D hero preskočený'); return; }
   heroStage = makeSpatialStage($('#heroCanvas'));
-  heroStage.onFrame = () => updatePinPositions(heroStage, heroPinEls, heroPinItems, 26);
+  heroStage.onFrame = () => {
+    updatePinPositions(heroStage, heroPinEls, heroPinItems, 26);
+    heroTickEls.forEach((el, i) => { const p = heroStage.project(heroTickItems[i].pos); el.style.left = p.x.toFixed(1) + 'px'; el.style.opacity = p.behind ? '0' : '1'; });
+  };
   $('#carDots').innerHTML = HERO_RANGES.map((rg, n) => `<button aria-label="${rg}" class="${n ? '' : 'on'}" data-i="${n}"></button>`).join('');
   $$('#carDots button').forEach(b => b.addEventListener('click', () => goSlide(+b.dataset.i)));
   heroStage.start();
@@ -1907,12 +1928,37 @@ function goSlide(i){
     const rebuild = () => {
       const halfW = visibleHalfWidthAt(heroStage.camera, mesh.position.z) * .82;
       const pts = HERO_POINTS[rg] || [];
-      const lons = pts.map(p => p.gps[1]), lonMn = Math.min(...lons), lonMx = Math.max(...lons);
-      heroPinItems = pts.map(p => {
-        const xNorm = pts.length > 1 ? (p.gps[1] - lonMn) / (lonMx - lonMn) * 1000 : 500;
+      // skutočný kompasový azimut z bodu v doline (juh od ťažiska bodov) na každý vrchol —
+      // presne ako na turistických panorámach, nie len poradie podľa dĺžky
+      const cLat = pts.reduce((s, p) => s + p.gps[0], 0) / pts.length - .07;
+      const cLon = pts.reduce((s, p) => s + p.gps[1], 0) / pts.length;
+      const bearings = pts.map(p => bearingTo([cLat, cLon], p.gps));
+      const brMn = Math.min(...bearings), brMx = Math.max(...bearings);
+      heroPinItems = pts.map((p, idx) => {
+        const xNorm = pts.length > 1 ? (bearings[idx] - brMn) / (brMx - brMn) * 1000 : 500;
         return { pos:pointWorldPos(mesh, xNorm, p.vyska, halfW), label:p.name };
       });
+      // blízke vrcholy (podľa premietnutej X na obrazovke) striedavo o riadok nižšie, nech sa štítky neprekrývajú
+      const screenX = heroPinItems.map(it => heroStage.project(it.pos).x);
+      heroPinItems.forEach((it, idx) => {
+        const near = screenX.some((x, j) => j !== idx && Math.abs(x - screenX[idx]) < 85);
+        it.lift = near && idx % 2 ? 15 : 0;
+      });
       heroPinEls = renderPins($('#heroPins'), heroPinItems.map(it => ({ label:it.label, attr:`data-point="${esc(it.label)}"` })));
+      const peakAlt = Math.max(...PROFILY[rg].body.map(b => b[1]));
+      const tickY = (peakAlt - mesh.userData.altMin) * mesh.userData.heightScale + mesh.position.y + 1.1;
+      heroTickItems = pts.length > 1 ? degreeTicks(brMn, brMx).map(deg => {
+        const xNorm = (deg - brMn) / (brMx - brMn) * 1000;
+        const worldX = (xNorm / 1000 - .5) * 2 * halfW;
+        return { pos:new THREE.Vector3(worldX, tickY, mesh.position.z - mesh.userData.wallDepth / 2 - .05), deg };
+      }) : [];
+      $('#heroPins').querySelectorAll('.tick').forEach(el => el.remove());
+      heroTickEls = heroTickItems.map(it => {
+        const el = document.createElement('div'); el.className = 'tick';
+        el.innerHTML = `${it.deg}°<span class="mark"></span>`;
+        $('#heroPins').appendChild(el);
+        return el;
+      });
     };
     // #page-domov môže byť pri prvom vykreslení ešte neviditeľná (canvas 0×0) — resize() to
     // zachytí a zavolá rebuild znova, hneď ako bude mať canvas reálny rozmer
