@@ -162,14 +162,17 @@ header{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.72);backdro
 .head{display:flex;align-items:center;gap:20px;padding-top:10px}
 .logo{display:flex;align-items:center;gap:9px;font:800 1.35rem var(--font-display);font-stretch:condensed;letter-spacing:.02em;background:none;border:0;cursor:pointer;color:var(--ink);padding:0;white-space:nowrap}
 .logo span span{color:var(--glow)}
-.logo svg{width:32px;height:32px}
+.logo svg{width:38px;height:24px}
 #mainNav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;padding:10px 0;margin:0 -16px;padding-left:16px;padding-right:16px;scroll-snap-type:x proximity}
 #mainNav::-webkit-scrollbar{display:none}
-#mainNav button{flex:0 0 auto;padding:.5em .9em;border:0;background:transparent;font:600 .9rem var(--font-body);color:var(--ink-soft);border-radius:var(--radius-pill);cursor:pointer;scroll-snap-align:start;white-space:nowrap;transition:color .15s,background .15s}
+#mainNav button{position:relative;flex:0 0 auto;padding:.5em .9em .6em;border:0;background:transparent;font:600 .9rem var(--font-body);color:var(--ink-soft);border-radius:var(--radius-pill);cursor:pointer;scroll-snap-align:start;white-space:nowrap;transition:color .15s,background .15s}
+#mainNav button::after{content:"";position:absolute;left:50%;bottom:0;width:0;height:2px;background:var(--glow);transform:translateX(-50%);transition:width .18s ease}
 #mainNav button:hover{color:var(--ink);background:var(--surface-2)}
-#mainNav button.active{background:var(--ink);color:var(--on-light)}
+#mainNav button.active{background:none;color:var(--ink)}
+#mainNav button.active::after{width:60%}
 #mainNav button.cta{color:var(--glow);box-shadow:inset 0 0 0 1.5px var(--glow)}
 #mainNav button.cta.active{background:var(--glow);color:var(--on-light)}
+#mainNav button.cta.active::after{display:none}
 @media(max-width:1099px){.head{flex-direction:column;align-items:flex-start;gap:0}.head #mainNav{width:calc(100% + 32px)}}
 @media(min-width:1100px){.head{padding:0;height:70px}#mainNav{margin:0 0 0 auto;padding:0}}
 
@@ -525,7 +528,8 @@ section{padding:72px 0}
 .btn.light{background:var(--ink);border-color:var(--ink);color:#f1eee6}
 .link{color:var(--ink)} .hero .link,.banner .link{color:#fff}
 .chip{letter-spacing:.06em;background:transparent}
-.chip[aria-pressed="true"],#mainNav button.active{background:var(--ink);color:#f1eee6;border-color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--ink);color:#f1eee6;border-color:var(--ink)}
+#mainNav button.active{background:none;color:var(--ink)}
 .tag{letter-spacing:.04em}
 select,input,textarea{background:rgba(31,42,36,.035);border-color:var(--line)}
 input:focus,select:focus,textarea:focus{outline-color:var(--brand)}
@@ -533,10 +537,12 @@ input:focus,select:focus,textarea:focus{outline-color:var(--brand)}
 code{background:var(--surface-2)}
 #toast{background:var(--ink);color:#f1eee6}
 /* hlavička */
-header{background:rgba(241,238,230,.92);border-bottom:1px solid var(--glass-line)}
+header{background:rgba(241,238,230,.92);border-bottom:1px solid var(--glass-line);position:relative}
+header::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;
+  background:repeating-linear-gradient(90deg,var(--brand) 0 14px,transparent 14px 22px)}
 .logo{color:var(--ink);font-weight:300;letter-spacing:.16em;text-transform:uppercase;font-stretch:normal;font-size:1.05rem}
 .logo span span{color:var(--brand);font-weight:700}
-.logo svg circle{fill:var(--brand)}
+.logo:hover svg path{stroke:var(--glow)}
 #mainNav button{letter-spacing:.1em;text-transform:uppercase;font-size:.7rem;font-weight:600}
 #mainNav button:hover{background:var(--surface-2)}
 #mainNav button.cta{color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}
@@ -625,7 +631,10 @@ footer p{color:rgba(255,255,255,.78)}
 <header id="siteHeader">
   <div class="wrap head">
     <button class="logo" data-goto="domov" aria-label="uchýlVhorách — domov">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="var(--brand)"/><path d="M5 23 L13 11 L17 17 L20 13 L27 23Z" fill="#fff"/><path d="M13 11 L15 14 L11 14Z" fill="var(--brand)" opacity=".4"/></svg>
+      <svg viewBox="0 0 42 26" aria-hidden="true" class="logo-ridge">
+        <path d="M1 24 L7 9 L11 17 L17 3 L23 15 L29 8 L34 13 L41 22" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="17" cy="3" r="1.6" fill="var(--glow)"/>
+      </svg>
 <span style="color:inherit">uchýl<span>V</span>horách</span>
     </button>
     <nav id="mainNav" aria-label="Hlavná navigácia">
@@ -1692,46 +1701,87 @@ function applyHeightGradient(geo, peakHeight){
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
 }
+/* hodnotový šum (bez knižnice) — plynulá, nie kockovaná drsnosť povrchu */
+function noiseHash(x, y){ const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); }
+function valueNoise(x, y){
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = noiseHash(xi, yi), b = noiseHash(xi + 1, yi), c = noiseHash(xi, yi + 1), d = noiseHash(xi + 1, yi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+function fbm(x, y){ let v = 0, amp = .5, f = 1; for(let i = 0; i < 4; i++){ v += (valueNoise(x * f, y * f) - .5) * amp; amp *= .52; f *= 2.3; } return v; }
+/* procedurálna kamenistá textúra (plátno, žiadny externý obrázok) — jemné škvrny + vrstevnicové ryhy */
+let _rockTex = null;
+function rockTexture(){
+  if(_rockTex) return _rockTex;
+  const size = 512, cv = document.createElement('canvas'); cv.width = cv.height = size;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, size, size);
+  const img = ctx.getImageData(0, 0, size, size), d = img.data;
+  for(let y = 0; y < size; y++) for(let x = 0; x < size; x++){
+    const n = fbm(x * .06, y * .06) * .5 + fbm(x * .22 + 50, y * .22) * .25 + fbm(x * .6, y * .6) * .12;
+    const v = Math.max(0, Math.min(255, 128 + n * 340));
+    const i = (y * size + x) * 4;
+    d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.strokeStyle = 'rgba(0,0,0,.05)';
+  for(let i = 0; i < 26; i++){
+    const y0 = Math.random() * size;
+    ctx.beginPath(); ctx.moveTo(0, y0);
+    ctx.bezierCurveTo(size * .3, y0 + (Math.random() - .5) * 40, size * .7, y0 + (Math.random() - .5) * 40, size, y0 + (Math.random() - .5) * 20);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  _rockTex = tex;
+  return tex;
+}
+/* skutočný 3D povrch (mriežka, nie vytlačený profil) — jemná drsnosť + farebný prechod + kamenistá textúra.
+   Len hlavný hrebeň daného pohoria, zblízka, nech to pôsobí ako stena priamo pred tebou. */
 function buildRangeTerrain(range){
   const body = PROFILY[range].body;
   const alts = body.map(b => b[1]), altMin = Math.min(...alts), altMax = Math.max(...alts);
-  const W = 15, wallDepth = 1.4, segX = 200;
+  const W = 15, D = 2.4, segX = 220, segZ = 20;
   const heightScale = 3.3 / Math.max(1, altMax - altMin);   // výraznejšie prevýšenie — pôsobí ako stena, nie ako kopček
-  const shape = new THREE.Shape();
-  shape.moveTo(-W / 2, 0);
-  for(let i = 0; i <= segX; i++){
-    const xNorm = i / segX * 1000;
-    const x = -W / 2 + i / segX * W;
-    shape.lineTo(x, (ridgeAlt(body, xNorm) - altMin) * heightScale);
+  const geo = new THREE.PlaneGeometry(W, D, segX, segZ);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const seed = [...range].reduce((s, c) => s + c.charCodeAt(0), 0);
+  for(let i = 0; i < pos.count; i++){
+    const xw = pos.getX(i), zw = pos.getZ(i), t = zw / D + .5;      // 0 predný hrebeň .. 1 zadný okraj
+    const xNorm = (xw / W + .5) * 1000;
+    const base = (ridgeAlt(body, xNorm) - altMin) * heightScale;
+    const rough = fbm(xw * 2.2 + seed, zw * 2.2) * .5 + fbm(xw * 7 - seed, zw * 7) * .14;
+    pos.setY(i, Math.max(0, base * (1 - t * .1) + rough));
   }
-  shape.lineTo(W / 2, 0);
-  shape.closePath();
-  const geo = new THREE.ExtrudeGeometry(shape, { depth:wallDepth, bevelEnabled:false, curveSegments:1, steps:1 });
-  geo.translate(0, 0, -wallDepth / 2);
   geo.computeVertexNormals();
   applyHeightGradient(geo, (altMax - altMin) * heightScale);
-  const mat = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.85, metalness:0, flatShading:true, side:THREE.DoubleSide });
+  const mat = new THREE.MeshStandardMaterial({ vertexColors:true, map:rockTexture(), roughness:1, metalness:0, flatShading:true, side:THREE.DoubleSide });
+  mat.map.repeat.set(16, 3);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.y = -1.35;
-  mesh.userData = { body, altMin, heightScale, W, wallDepth };
+  mesh.userData = { body, altMin, heightScale, W, wallDepth:D };
   return mesh;
 }
-/* rovnaký princíp pre pás chát — mierne zvlnená stena (dekoratívna, bez reálnych výškových dát) */
+/* rovnaký princíp pre pás chát — mierne zvlnený povrch (dekoratívny, bez reálnych výškových dát) */
 function buildHutTerrain(){
-  const W = 15, wallDepth = .9, segX = 160, peak = 1.05;
-  const shape = new THREE.Shape();
-  shape.moveTo(-W / 2, 0);
-  for(let i = 0; i <= segX; i++){
-    const x = -W / 2 + i / segX * W;
-    shape.lineTo(x, Math.max(.05, Math.sin(x * .55) * .5 + Math.cos(x * .27 + 1.3) * .32 + .5));
+  const W = 15, D = 1.6, segX = 180, segZ = 12, peak = 1.1;
+  const geo = new THREE.PlaneGeometry(W, D, segX, segZ);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  for(let i = 0; i < pos.count; i++){
+    const xw = pos.getX(i), zw = pos.getZ(i);
+    const base = Math.max(.05, Math.sin(xw * .55) * .5 + Math.cos(xw * .27 + 1.3) * .32 + .5);
+    const rough = fbm(xw * 2.2 + 40, zw * 2.2) * .35 + fbm(xw * 7, zw * 7) * .1;
+    pos.setY(i, Math.max(0, base + rough));
   }
-  shape.lineTo(W / 2, 0);
-  shape.closePath();
-  const geo = new THREE.ExtrudeGeometry(shape, { depth:wallDepth, bevelEnabled:false, curveSegments:1, steps:1 });
-  geo.translate(0, 0, -wallDepth / 2);
   geo.computeVertexNormals();
   applyHeightGradient(geo, peak);
-  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.85, metalness:0, flatShading:true, side:THREE.DoubleSide }));
+  const mat = new THREE.MeshStandardMaterial({ vertexColors:true, map:rockTexture(), roughness:1, metalness:0, flatShading:true, side:THREE.DoubleSide });
+  mat.map.repeat.set(16, 2);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData = { wallDepth:D };
   return mesh;
 }
 /* spoločný stroj: canvas + scéna/kamera/svetlo + vykresľovacia slučka + mierny parallax pri pohybe myšou */
@@ -1801,7 +1851,7 @@ function pointWorldPos(mesh, xNorm, altMeters, halfWidth){
   const { altMin, heightScale, wallDepth } = mesh.userData;
   const worldX = (xNorm / 1000 - .5) * 2 * halfWidth;
   const worldY = (altMeters != null ? (altMeters - altMin) * heightScale + .1 : .3) + mesh.position.y;
-  return new THREE.Vector3(worldX, worldY, mesh.position.z + wallDepth / 2 + .05);
+  return new THREE.Vector3(worldX, worldY, mesh.position.z - wallDepth / 2 - .05);
 }
 /* HTML pečiatka (palička + bodka + štítok) nad bodom premietnutým z 3D do 2D */
 /* panoráma-štýl: štítok sedí v spoločnom riadku (topRow) a tenká čiarka vedie rovno dolu k vrcholu */
@@ -1885,7 +1935,7 @@ function renderHutStrip(){
       const xNorm = huts.length > 1 ? i / (huts.length - 1) * 1000 : 500;
       const worldX = (xNorm / 1000 - .5) * 2 * halfW;
       const terrainY = Math.max(.05, Math.sin(worldX * .55) * .5 + Math.cos(worldX * .27 + 1.3) * .32 + .5) + .08;
-      return { pos:new THREE.Vector3(worldX, terrainY, mesh.position.z + .9 / 2 + .05), label:p.nazov, id:p.id };
+      return { pos:new THREE.Vector3(worldX, terrainY, mesh.position.z - 1.6 / 2 - .05), label:p.nazov, id:p.id };
     });
     pinEls = renderPins($('#hutPins'), items.map(it => ({ label:it.label, attr:`data-open="${it.id}"` })));
   };
