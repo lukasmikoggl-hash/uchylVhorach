@@ -1284,6 +1284,25 @@ const TRASY = [
     profil:[['Chata Vrátna',750],['Snilovské sedlo',1524],['Veľký Kriváň',1709],['Malý Kriváň',1668],['Pekelník',1609],['Varín',360]],
     dni:['Chata Vrátna → Snilovské sedlo (2,8 km / 2:13 h) → Veľký Kriváň (1,3 km / 45 min) → Malý Kriváň (3,9 km / 1:39 h) → Pekelník (2,8 km / 1:11 h) → Varín (15,4 km / 5:29 h). Spolu 26,2 km / 11:16 h — jeden dlhý deň, bez nocľahu.'],
     upozornenie:'Reálny GPS záznam: mapy.com/s/hacezebezo (mapy.cz hlásilo pri tejto trase aj „obmedzenia na trase“ — over si aktuálny stav pred výstupom). Exponovaný skalnatý hrebeň, len za stabilného počasia.'
+  },
+  {
+    id:'bielyPotokNezbudska', nazov:'Malá Fatra: Rozsutce – Chata pod Chlebom – Nezbudská Lúčka', pohorie:'Malá Fatra', narocnost:3, obdobie:['leto','jeseň'],
+    mhd:true, hreben:true, nebezpecne:true,
+    perex:'Náročný hrebeňový prechod cez Malý aj Veľký Rozsutec, s nocľahom na Chate pod Chlebom.',
+    zastavky:['Biely potok','Malý Rozsutec','Medzirozsutce','Veľký Rozsutec','Medziholie','chlebChata','Nezbudská Lúčka'],
+    profil:[['Biely potok',575],['Malý Rozsutec',1343],['Medzirozsutce',1203],['Veľký Rozsutec',1609],['Medziholie',1185],['Chata pod Chlebom',1420],['Nezbudská Lúčka',360]],
+    dni:['Biely potok → Malý Rozsutec (4,1 km / 2:35 h) → Medzirozsutce (0,8 km / 22 min) → Veľký Rozsutec (1,6 km / 1:11 h) → Medziholie (1,2 km / 56 min) → Chata pod Chlebom (7,9 km / 3:19 h), nocľah.',
+         '→ Nezbudská Lúčka (17,6 km / 6:42 h), koniec.'],
+    upozornenie:'Reálny GPS záznam: mapy.com/s/mogarugeje. Rozsutce majú exponované, miestami zabezpečené úseky (rebríky/reťaze) — len za stabilného počasia.'
+  },
+  {
+    id:'jasnaOkruh', nazov:'Nízke Tatry: okruh z Jasnej (jednodňovka)', pohorie:'Nízke Tatry', narocnost:2, obdobie:['leto','jeseň'],
+    mhd:true,
+    perex:'Celodenný okruh z Jasnej cez Bencúrovu vežu, Demänovskú jaskyňu slobody a sedlá Pusté a Javorie.',
+    zastavky:['Hotel Björnson','Bencúrova veža','Demänovská jaskyňa slobody','Pusté','Javorie','Hotel Björnson'],
+    profil:[['Hotel Björnson',950],['Bencúrova veža',1171],['Demänovská jaskyňa slobody',870],['Pusté',1500],['Javorie',1487],['Hotel Björnson',950]],
+    dni:['Hotel Björnson → Bencúrova veža (1,5 km / 29 min) → Demänovská jaskyňa slobody (3,5 km / 1:26 h) → Pusté (3,9 km / 2:13 h) → Javorie (4,1 km / 1:54 h) → späť k hotelu (10,4 km / 3:42 h). Spolu 23,5 km / 9:45 h — okruh bez nocľahu.'],
+    upozornenie:'Reálny GPS záznam: mapy.com/s/husuhokezu. Jaskyňa slobody je sprístupnená len s prehliadkou — over si otváracie hodiny vopred.'
   }
 ];
 
@@ -1355,6 +1374,17 @@ const BODY = {
   'Chata Vrátna':      { gps:[49.205, 19.058], vyska:750,  typ:'chata' },
   'Šútovo':            { gps:[49.15, 19.0833333], vyska:'cca 430 (over si)', typ:'mesto' },
   'Varín':             { gps:[49.2013689, 18.8698897], vyska:360, typ:'mesto' },
+  'Biely potok':       { gps:[49.2575433, 19.0667606], vyska:575, typ:'mesto' },
+  'Malý Rozsutec':     { gps:[49.2464353, 19.1016503], vyska:1343, typ:'kopec' },
+  'Medzirozsutce':     { gps:[49.2429697, 19.1070908], vyska:1203, typ:'sedlo' },
+  'Veľký Rozsutec':    { gps:[49.2315161, 19.0985361], vyska:1609, typ:'kopec' },
+  'Medziholie':        { gps:[49.2247256, 19.1043125], vyska:1185, typ:'sedlo' },
+  'Nezbudská Lúčka':   { gps:[49.1795183, 18.8673517], vyska:360, typ:'mesto' },
+  'Hotel Björnson':    { gps:[48.9668667, 19.5821739], vyska:'cca 950 (over si)', typ:'mesto' },
+  'Bencúrova veža':    { gps:[48.9753428, 19.5851794], vyska:1171, typ:'kopec' },
+  'Demänovská jaskyňa slobody': { gps:[48.9981650, 19.5853983], vyska:'cca 870 (over si)', typ:'jaskyna' },
+  'Pusté':             { gps:[48.9970347, 19.6059308], vyska:1500, typ:'kopec' },
+  'Javorie':           { gps:[48.9732083, 19.6328446], vyska:1487, typ:'sedlo' },
   'Krahule':           { gps:[48.7373542, 18.9307708], vyska:'cca 750 (over si)', typ:'mesto' },
   'Staré Hory':        { gps:[48.8385542, 19.1147881], vyska:482, typ:'mesto' }
 };
@@ -1368,7 +1398,8 @@ const BOD_TYPY = {
   kopec:  { ico:'▲', nazov:'Vrchol' },
   sedlo:  { ico:'✧', nazov:'Sedlo' },
   pleso:  { ico:'◌', nazov:'Pleso' },
-  mesto:  { ico:'▭', nazov:'Mesto / obec / nástup' }
+  mesto:  { ico:'▭', nazov:'Mesto / obec / nástup' },
+  jaskyna:{ ico:'◉', nazov:'Jaskyňa' }
 };
 
 /* ── UKÁŽKOVÉ PRÍSPEVKY v Zážitkoch ── (vymyslené profily, označené „ukážka“)
@@ -1648,7 +1679,7 @@ function ridgeAlt(pts, x){
 /* postaví hrebeň ako skutočnú 3D stenu (vytlačený profilový tvar, nie plochu s kopčekmi vzadu) —
    len hlavný hrebeň daného pohoria, zblízka, nech to pôsobí ako stena priamo pred tebou */
 /* farebný prechod podľa výšky — od tmavej úpätovej po teplú vrcholovú, z tvojej palety (žiadna textúra, len farba) */
-const RIDGE_GRADIENT = ['#728f78', '#88a68f', '#e4d0b5', '#cfa09c'].map(h => new THREE.Color(h));
+const RIDGE_GRADIENT = ['#55564f', '#84847c', '#b7b7ae', '#e8e7df'].map(h => new THREE.Color(h));
 function applyHeightGradient(geo, peakHeight){
   const pos = geo.attributes.position, n = pos.count;
   const col = new Float32Array(n * 3), c = new THREE.Color();
