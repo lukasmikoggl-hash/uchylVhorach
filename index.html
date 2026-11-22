@@ -628,6 +628,72 @@ footer p{color:rgba(255,255,255,.78)}
 .empty{border-color:var(--line)}
 .icon-btn:hover{background:rgba(31,42,36,.1)}
 .drop{aspect-ratio:auto;min-height:120px;border-color:var(--line);background:rgba(255,255,255,.35)}
+
+/* ╔════════════════════════════════════════════════════════════════╗
+   ║  v7 · INTERAKTIVITA — mapovo/outdoorové mikro-interakcie        ║
+   ║  nad plochým v6 vzhľadom, bez zmeny farieb/rádiusov/tiposu      ║
+   ╚════════════════════════════════════════════════════════════════╝ */
+body{isolation:isolate}
+body::before,.grain{display:block}
+body::before{background-position:0 0,0 0,0 0,0 var(--contour-y,0px)}
+
+.card,.route-card,.panel,.post,.map-box{border-radius:var(--radius-lg);box-shadow:var(--shadow)}
+.card,.route-card,.post{transition:transform .2s,box-shadow .2s}
+:is(.card,.route-card,.post):focus-within{box-shadow:var(--shadow-up)}
+.btn,.chip,#mainNav button{border-radius:var(--radius-pill)}
+.tag{border:1px solid rgba(29,42,36,.12)}
+.btn.light:hover{color:#fff}
+
+.btn:focus-visible,.chip:focus-visible,.icon-btn:focus-visible,
+.route-card:focus-visible,#mainNav button:focus-visible,summary:focus-visible{
+  outline:2px solid var(--brand-dark);outline-offset:3px}
+.chip:focus-visible{outline-offset:-3px}
+#routeBar :focus-visible,footer :focus-visible,.banner :focus-visible{outline:2px solid var(--solid);outline-offset:3px}
+
+#siteHeader{position:sticky;top:0;background:rgba(243,238,229,.94)}
+#mainNav{padding-block:6px}
+#mainNav button{min-height:44px;padding-inline:1em}
+#mainNav button::after{content:none}
+#mainNav button[aria-current]{background:var(--ok);box-shadow:inset 0 0 0 1px var(--brand);color:var(--brand-dark)}
+#mainNav button.cta[aria-current]{background:var(--brand);color:#fff}
+
+.map-box{touch-action:auto}
+#map{touch-action:none}
+.map-zoom .icon-btn{width:44px;height:44px;border-radius:50%}
+.map-north{position:absolute;top:10px;left:10px;display:grid;place-items:center;width:36px;height:44px;
+  background:var(--solid);border:1px solid var(--line);border-radius:var(--radius-pill);color:var(--brand-dark);
+  font-size:.75rem;line-height:1;pointer-events:none}
+.map-north span,#heroPins .tick .mark{transition:color .18s,scale .18s}
+#map.drag ~ .map-north span{color:var(--glow)}
+#heroPins:has(.pin:is(:hover,:focus-visible)) .tick .mark{background:var(--brand)}
+#map .m-place > text{pointer-events:none}
+#map .m-place:is(:hover,:focus-visible,[aria-current="true"]) > circle{stroke:var(--ink)}
+#map .m-place:focus-visible{outline:2px solid var(--brand-dark);outline-offset:2px}
+.map-route-line{pointer-events:stroke}
+.map-layout:has(.map-route-line:hover,#mapProfile summary:focus-visible,#mapProfile[open]) .map-route-line{stroke:var(--glow)}
+#mapProfile{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line)}
+#mapProfile summary{cursor:pointer;min-height:44px;padding-block:10px;font-weight:700}
+
+@media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference){
+  :is(.card,.route-card,.post):hover{transform:perspective(950px) translateY(-3px) rotateX(1deg);box-shadow:var(--shadow-up)}
+}
+
+@media (prefers-reduced-motion:no-preference){
+  /* Vyššia priorita prepisuje globálne vypnutie animácií v bloku v6. */
+  .page.active:not(#page-domov) section:first-child .section-head:first-child{
+    animation:atlas-page .28s ease-out !important;transform-origin:left center}
+  .atlas-reveal{animation:atlas-reveal .34s ease-out !important}
+  #map.drag ~ .map-north span{scale:1.15}
+  #heroPins:has(.pin:is(:hover,:focus-visible)) .tick .mark{scale:1 1.5}
+  #map .m-place:is(:hover,:focus-visible,[aria-current="true"]) > circle{
+    animation:atlas-pin .65s ease-out !important;transform-box:fill-box;transform-origin:center}
+  .map-layout:has(.map-route-line:hover,#mapProfile summary:focus-visible,#mapProfile[open]) .map-route-line{
+    animation:atlas-dash .7s linear !important}
+  @keyframes atlas-page{from{transform:perspective(1000px) rotateY(-4deg) translateX(-7px);opacity:.8}}
+  @keyframes atlas-reveal{from{translate:0 8px;opacity:.78}}
+  @keyframes atlas-pin{40%{scale:1.2}}
+  @keyframes atlas-dash{to{stroke-dashoffset:var(--dash-step)}}
+}
 </style>
 
 </head>
@@ -3027,6 +3093,128 @@ function init(){
   showPage(start);
 }
 init();
+
+/* ===== v7: mapovo/outdoorové mikro-interakcie (nad existujúcou logikou) ===== */
+(() => {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const nav = $('#mainNav');
+  const map = $('#map');
+
+  function markPage(p){
+    $$('#mainNav button').forEach(button => {
+      const current = button.dataset.goto === p;
+      const section = p === 'spanie' && button.dataset.goto === 'mapa';
+      button.classList.toggle('active', current || section);
+      if(current || section) button.setAttribute('aria-current', current ? 'page' : 'location');
+      else button.removeAttribute('aria-current');
+    });
+    const active = nav.querySelector('[aria-current]');
+    if(!active) return;
+    const link = active.getBoundingClientRect(), bar = nav.getBoundingClientRect();
+    if(link.left < bar.left + 4 || link.right > bar.right - 4) nav.scrollBy({ left: link.left - bar.left - 12, behavior: 'instant' });
+  }
+
+  showPage = function(p){
+    if(!PAGES.includes(p)) p = 'domov';
+    PAGES.forEach(id => $('#page-' + id).classList.toggle('active', id === p));
+    markPage(p);
+    try{ history.replaceState(null, '', '#' + p); }catch(e){}
+    window.scrollTo(0, 0);
+    if(p === 'mapa') renderMap();
+    if(p === 'moje') renderMyRoutes();
+    if(p === 'projekt') requestAnimationFrame(() => $$('.fill').forEach(f => f.style.width = f.dataset.w + '%'));
+    if(p === 'domov') startCarousel(); else stopCarousel();
+    const heading = $('#page-' + p).querySelector('h1, h2, h3');
+    if(heading){ heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+  };
+
+  markPage($('.page.active').id.slice(5));
+
+  const selector = '.section-head, .card, .route-card, .post';
+  const main = $('main');
+  if('IntersectionObserver' in window){
+    const reveal = new IntersectionObserver(entries => {
+      for(const { target, isIntersecting } of entries){
+        if(!isIntersecting) continue;
+        reveal.unobserve(target);
+        target.classList.add('atlas-reveal');
+      }
+    }, { threshold: .08 });
+
+    const visit = (element, callback) => {
+      if(element.nodeType !== 1) return;
+      if(element.matches(selector)) callback(element);
+      element.querySelectorAll(selector).forEach(callback);
+    };
+    const observe = element => visit(element, card => { if(!card.classList.contains('atlas-reveal')) reveal.observe(card); });
+    observe(main);
+
+    new MutationObserver(records => {
+      for(const record of records){
+        record.removedNodes.forEach(element => { if(!element.isConnected) visit(element, card => reveal.unobserve(card)); });
+        record.addedNodes.forEach(element => { if(element.isConnected) observe(element); });
+      }
+    }).observe(main, { childList: true, subtree: true });
+  }
+
+  let frame = 0;
+  const updateContours = () => {
+    frame = 0;
+    const y = reduced.matches ? 0 : Math.min(28, window.scrollY * .045);
+    document.body.style.setProperty('--contour-y', y + 'px');
+  };
+  addEventListener('scroll', () => { if(!reduced.matches && !frame) frame = requestAnimationFrame(updateContours); }, { passive: true });
+  reduced.addEventListener('change', updateContours);
+  updateContours();
+
+  map.setAttribute('role', 'group');
+  map.insertAdjacentHTML('afterend', '<div class="map-north" aria-hidden="true">S<span>▲</span></div>');
+
+  const originalRenderMap = renderMap;
+  renderMap = function(){
+    originalRenderMap();
+    const line = map.querySelector(':scope > polyline');
+    if(line){ line.classList.add('map-route-line'); line.style.setProperty('--dash-step', -13 * vb.w / MAP_W); }
+    const pin = [...map.querySelectorAll('[data-pid]')].find(el => el.dataset.pid === mapSelected);
+    pin?.setAttribute('aria-current', 'true');
+  };
+
+  const originalRenderMapSide = renderMapSide;
+  renderMapSide = function(){
+    const wasOpen = $('#mapProfile')?.open;
+    originalRenderMapSide();
+    const route = activeRoute();
+    if(!route || route.stops.length < 2) return;
+    const places = route.stops.map(placeById);
+    const heights = places.map(vyskaNum);
+    const panel = $('#mapRoute');
+    if(!heights.every(Number.isFinite)){
+      panel.insertAdjacentHTML('beforeend', '<p class="muted">Pri niektorých zastávkach chýba výška.</p>');
+      return;
+    }
+    const low = Math.min(...heights);
+    const span = Math.max(1, Math.max(...heights) - low);
+    const points = heights.map((height, i) => {
+      const x = 8 + 224 * i / (heights.length - 1);
+      const y = 60 - 48 * (height - low) / span;
+      return x + ',' + y;
+    }).join(' ');
+    const stops = places.map((place, i) => '<li>' + esc(place.nazov) + ' · ' + heights[i] + ' m</li>').join('');
+    panel.insertAdjacentHTML('beforeend', `
+      <details id="mapProfile"${wasOpen ? ' open' : ''}>
+        <summary>Výšky zastávok</summary>
+        <p class="muted">Orientačné výšky bodov v poradí trasy.</p>
+        <svg viewBox="0 0 240 68" aria-hidden="true" focusable="false">
+          <polyline points="${points}" fill="none" stroke="var(--brand)" stroke-width="2"
+            vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+        </svg>
+        <ol>${stops}</ol>
+      </details>
+    `);
+  };
+
+  if($('#page-mapa').classList.contains('active')) renderMap();
+})();
 </script>
 </body>
 </html>
