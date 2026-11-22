@@ -2008,347 +2008,1162 @@ document.addEventListener('click', e => {
   if(m){ closeModal(); mapSelected = m.dataset.onmap; showPage('mapa'); focusPlace(m.dataset.onmap); }
 });
 
-/* ===== Domov: hero — skutočný 3D terén (three.js) s klikateľnými bodmi ===== */
-/* skutočný kompasový azimut (0–360°) z bodu `from` na bod `to`, oba [šírka,dĺžka] */
-function bearingTo(from, to){
-  const r = d => d * Math.PI / 180, lat1 = r(from[0]), lat2 = r(to[0]), dLon = r(to[1] - from[1]);
-  const y = Math.sin(dLon) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-}
-/* skupina bodov blízko pri sebe má azimuty namiešané okolo 0°/360° (napr. 358°, 1°, 2°) — Math.min/max by to
-   vyhodnotil ako takmer celý kruh. Rozbalí uhly do súvislého pásma okolo ich kruhového priemeru, nech sa dá
-   na nich normálne robiť min/max a lineárne rozloženie na stupnici. */
-function unwrapBearings(bearings){
-  const r = d => d * Math.PI / 180;
-  const sumSin = bearings.reduce((s, b) => s + Math.sin(r(b)), 0), sumCos = bearings.reduce((s, b) => s + Math.cos(r(b)), 0);
-  const mean = (Math.atan2(sumSin, sumCos) * 180 / Math.PI + 360) % 360;
-  return bearings.map(b => mean + (((b - mean + 180) % 360 + 360) % 360 - 180));
-}
-/* pekné okrúhle stupne azimutu v danom rozsahu — pre stupnicu hore, ako na skutočných panorámach vrcholov */
-function degreeTicks(mn, mx){
-  const span = mx - mn, step = span > 60 ? 20 : span > 28 ? 10 : 5, out = [];
-  for(let d = Math.ceil(mn / step) * step; d <= mx; d += step) out.push(d);
-  return out;
-}
-function ridgeAlt(pts, x){
-  for(let i = 1; i < pts.length; i++) if(x <= pts[i][0]){ const [x0,a0] = pts[i-1], [x1,a1] = pts[i]; return a0 + (a1-a0) * (x-x0) / (x1-x0); }
-  return pts[pts.length-1][1];
-}
-/* postaví hrebeň ako skutočnú 3D stenu (vytlačený profilový tvar, nie plochu s kopčekmi vzadu) —
-   len hlavný hrebeň daného pohoria, zblízka, nech to pôsobí ako stena priamo pred tebou */
-/* farebný prechod podľa výšky — odtiene sivej a čiernej, od tmavej úpätovej po svetlú vrcholovú, žiadna farba */
-const RIDGE_GRADIENT = ['#2d2d2b', '#55564f', '#84847c', '#b7b7ae', '#e8e7df'].map(h => new THREE.Color(h));
-function gradientColor(ramp, t){
-  const steps = ramp.length - 1, tt = Math.max(0, Math.min(1, t)) * steps, seg = Math.min(steps - 1, Math.floor(tt));
-  return new THREE.Color().copy(ramp[seg]).lerp(ramp[seg + 1], tt - seg);
-}
-function applyHeightGradient(geo, peakHeight){
-  const pos = geo.attributes.position, n = pos.count;
-  const col = new Float32Array(n * 3);
-  for(let i = 0; i < n; i++){
-    const t = Math.max(0, Math.min(1, pos.getY(i) / peakHeight));
-    const c = gradientColor(RIDGE_GRADIENT, t);
-    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
-  }
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-}
-/* hodnotový šum (bez knižnice) — plynulá, nie kockovaná drsnosť povrchu */
-function noiseHash(x, y){ const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); }
-function valueNoise(x, y){
-  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
-  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-  const a = noiseHash(xi, yi), b = noiseHash(xi + 1, yi), c = noiseHash(xi, yi + 1), d = noiseHash(xi + 1, yi + 1);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-}
-function fbm(x, y){ let v = 0, amp = .5, f = 1; for(let i = 0; i < 4; i++){ v += (valueNoise(x * f, y * f) - .5) * amp; amp *= .52; f *= 2.3; } return v; }
-/* procedurálna kamenistá textúra (plátno, žiadny externý obrázok) — jemné škvrny + vrstevnicové ryhy */
-let _rockTex = null;
-function rockTexture(){
-  if(_rockTex) return _rockTex;
-  const size = 512, cv = document.createElement('canvas'); cv.width = cv.height = size;
-  const ctx = cv.getContext('2d');
-  ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, size, size);
-  const img = ctx.getImageData(0, 0, size, size), d = img.data;
-  for(let y = 0; y < size; y++) for(let x = 0; x < size; x++){
-    const n = fbm(x * .06, y * .06) * .5 + fbm(x * .22 + 50, y * .22) * .25 + fbm(x * .6, y * .6) * .12;
-    const v = Math.max(0, Math.min(255, 128 + n * 340));
-    const i = (y * size + x) * 4;
-    d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  ctx.strokeStyle = 'rgba(0,0,0,.05)';
-  for(let i = 0; i < 26; i++){
-    const y0 = Math.random() * size;
-    ctx.beginPath(); ctx.moveTo(0, y0);
-    ctx.bezierCurveTo(size * .3, y0 + (Math.random() - .5) * 40, size * .7, y0 + (Math.random() - .5) * 40, size, y0 + (Math.random() - .5) * 20);
-    ctx.stroke();
-  }
-  const tex = new THREE.CanvasTexture(cv);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  _rockTex = tex;
-  return tex;
-}
-/* základová doska pod povrchom — bez nej je terén len nekonečne tenká plachta vznášajúca sa vo vzduchu;
-   s ňou je to jeden uzavretý kus, ako skutočný reliéfny model */
-function solidBase(W, D, h, color, topY){
-  const geo = new THREE.BoxGeometry(W * .985, h, D * .96);
-  const tex = rockTexture().clone(); tex.needsUpdate = true;
-  tex.repeat.set(10, 1.3);                                    // vlastná kópia textúry (nezdieľaná s povrchom), nech má doska tú istú zrnitosť, nie hladkú plochú farbu
-  const mat = new THREE.MeshStandardMaterial({ color: color || 0x3c3b35, map:tex, roughness:1, metalness:0 });
-  const box = new THREE.Mesh(geo, mat);
-  box.position.y = (topY === undefined ? .015 : topY) - h / 2;
-  return box;
-}
-/* skutočný 3D povrch (mriežka, nie vytlačený profil) — jemná drsnosť + farebný prechod + kamenistá textúra,
-   na základovej doske, nech to pôsobí ako skutočný kus hôr pred tebou, nie plochý profil zhora. */
-function buildRangeTerrain(range){
-  const body = PROFILY[range].body;
-  const alts = body.map(b => b[1]), altMin = Math.min(...alts), altMax = Math.max(...alts);
-  const W = 15, D = 4.2, segX = 380, segZ = 70;               // hlbší model — má sa vidieť skutočný objem, nielen profil
-  const heightScale = 3.3 / Math.max(1, altMax - altMin);   // výraznejšie prevýšenie — pôsobí ako stena, nie ako kopček
-  const geo = new THREE.PlaneGeometry(W, D, segX, segZ);
-  geo.rotateX(-Math.PI / 2);
-  const pos = geo.attributes.position;
-  const seed = [...range].reduce((s, c) => s + c.charCodeAt(0), 0);
-  for(let i = 0; i < pos.count; i++){
-    const xw = pos.getX(i), zw = pos.getZ(i), t = zw / D + .5;      // 0 predný hrebeň .. 1 zadný okraj
-    const xNorm = (xw / W + .5) * 1000;
-    const base = (ridgeAlt(body, xNorm) - altMin) * heightScale;
-    const rough = fbm(xw * 2.2 + seed, zw * 2.2) * .42 + fbm(xw * 8 - seed, zw * 8) * .1 + fbm(xw * 24 + seed, zw * 24) * .028;
-    pos.setY(i, Math.max(.22, base * (1 - t * .45)) + rough);        // zadná časť citeľne nižšie — vidno, že ide dozadu; podlaha nikdy úplne na nulu (ale drsnosť nad ňou zostáva), nech dolina nepôsobí ako plochá doska
-  }
-  geo.computeVertexNormals();                                 // hladké normály — povrch skalnatý, nie fazetovaný ako drahokam
-  applyHeightGradient(geo, (altMax - altMin) * heightScale);
-  const mat = new THREE.MeshStandardMaterial({ vertexColors:true, map:rockTexture(), roughness:.96, metalness:0, flatShading:false, side:THREE.DoubleSide });
-  mat.map.repeat.set(20, 6);
-  const surface = new THREE.Mesh(geo, mat);
-  const group = new THREE.Group();
-  group.add(surface, solidBase(W, D, .45, 0x2d2d2b, .22));    // tenký podstavec — len naznačí objem, nemá pôsobiť ako plochá stena; vrch lícuje s podlahou terénu
-  group.position.y = -2.3;
-  group.userData = { body, altMin, heightScale, W, wallDepth:D };
-  return group;
-}
-/* rovnaký princíp pre pás chát — mierne zvlnený povrch (dekoratívny, bez reálnych výškových dát) */
-function buildHutTerrain(){
-  const W = 15, D = 2.6, segX = 240, segZ = 40, peak = 1.1;
-  const geo = new THREE.PlaneGeometry(W, D, segX, segZ);
-  geo.rotateX(-Math.PI / 2);
-  const pos = geo.attributes.position;
-  for(let i = 0; i < pos.count; i++){
-    const xw = pos.getX(i), zw = pos.getZ(i), t = zw / D + .5;
-    const base = Math.max(.05, Math.sin(xw * .55) * .5 + Math.cos(xw * .27 + 1.3) * .32 + .5);
-    const rough = fbm(xw * 2.2 + 40, zw * 2.2) * .35 + fbm(xw * 7, zw * 7) * .1;
-    pos.setY(i, Math.max(.2, base * (1 - t * .45)) + rough);
-  }
-  geo.computeVertexNormals();
-  applyHeightGradient(geo, peak);
-  const mat = new THREE.MeshStandardMaterial({ vertexColors:true, map:rockTexture(), roughness:1, metalness:0, flatShading:false, side:THREE.DoubleSide });
-  mat.map.repeat.set(16, 3);
-  const surface = new THREE.Mesh(geo, mat);
-  const mesh = new THREE.Group();
-  mesh.add(surface, solidBase(W, D, .35, undefined, .2));
-  mesh.userData = { wallDepth:D };
-  return mesh;
-}
-/* spoločný stroj: canvas + scéna/kamera/svetlo + vykresľovacia slučka + mierny parallax pri pohybe myšou */
-function makeSpatialStage(canvas){
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(58, 1, .1, 100);
-  scene.add(new THREE.AmbientLight(0xffffff, .5));
-  const sun = new THREE.DirectionalLight(0xffffff, 1);
-  sun.position.set(-5, 7, 4);
-  scene.add(sun);
-  const fill = new THREE.DirectionalLight(0xffffff, .3);
-  fill.position.set(4, 3, -5);
-  scene.add(fill);
-  let mesh = null, mouseX = 0, mouseY = 0, raf = null, lastW = 0, lastH = 0;
-  const baseCam = { x:0, y:3.8, z:7.4, lx:0, ly:-.6, lz:-.8 };   // šikmý pohľad zhora — vidno skutočný objem, nie plochý profil spredu
-  function resize(){
-    const r = canvas.getBoundingClientRect();
-    if(r.width < 2 || r.height < 2) return;
-    if(r.width === lastW && r.height === lastH) return;
-    lastW = r.width; lastH = r.height;
-    renderer.setSize(r.width, r.height, false);
-    camera.aspect = r.width / r.height;
-    camera.updateProjectionMatrix();
-    // #page-domov môže byť pri štarte ešte display:none (canvas má 0×0) — keď sa rozmer
-    // skutočne prvýkrát ustáli na reálnu hodnotu, treba prepočítať rozostup bodov
-    stage.onResize && stage.onResize();
-  }
-  canvas.addEventListener('mousemove', e => {
-    const r = canvas.getBoundingClientRect();
-    mouseX = ((e.clientX - r.left) / r.width - .5) * 2;
-    mouseY = ((e.clientY - r.top) / r.height - .5) * 2;
-  });
-  canvas.addEventListener('mouseleave', () => { mouseX = 0; mouseY = 0; });
-  function loop(){
-    raf = requestAnimationFrame(loop);
-    camera.position.x += (baseCam.x + mouseX * .32 - camera.position.x) * .04;
-    camera.position.y += (baseCam.y - mouseY * .16 - camera.position.y) * .04;
-    camera.position.z = baseCam.z;
-    camera.lookAt(baseCam.lx, baseCam.ly, baseCam.lz);
-    resize();
-    renderer.render(scene, camera);
-    stage.onFrame && stage.onFrame();
-  }
-  const stage = { renderer, scene, camera, resize,
-    setMesh(m){ if(mesh) scene.remove(mesh); mesh = m; scene.add(m); },
-    start(){ if(!raf) loop(); },
-    stop(){ cancelAnimationFrame(raf); raf = null; },
-    project(vec3){
-      const r = canvas.getBoundingClientRect();
-      const v = vec3.clone().project(camera);
-      return { x:(v.x * .5 + .5) * r.width, y:(1 - (v.y * .5 + .5)) * r.height, behind:v.z > 1 };
-    }
-  };
-  return stage;
-}
-/* polovičná viditeľná šírka (vo world jednotkách) vo vzdialenosti worldZ od kamery — podľa aktuálneho pomeru strán canvasu.
-   Bez tohto sa body pri úzkom/vysokom canvase posúvajú mimo záber (kamera má užší horizontálny zorný uhol). */
-function visibleHalfWidthAt(camera, worldZ){
-  const dist = Math.abs(camera.position.z - worldZ);
-  const vFov = camera.fov * Math.PI / 180;
-  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
-  return dist * Math.tan(hFov / 2);
-}
-/* štítok visí presne nad miestom, kde sa tam v 3D modeli skutočne dvíha silueta — nie podľa reálnej nadmorskej výšky bodu
-   (tá je z iného súradnicového systému ako stylizovaný profil hrebeňa, takže by čiarka mierila mimo hory) */
-function pointWorldPos(mesh, xNorm, halfWidth){
-  const { altMin, heightScale, wallDepth, body } = mesh.userData;
-  const worldX = (xNorm / 1000 - .5) * 2 * halfWidth;
-  const worldY = Math.max(0, (ridgeAlt(body, xNorm) - altMin) * heightScale) + .12 + mesh.position.y;
-  return new THREE.Vector3(worldX, worldY, mesh.position.z - wallDepth / 2 - .05);
-}
-/* HTML pečiatka (palička + bodka + štítok) nad bodom premietnutým z 3D do 2D */
-/* panoráma-štýl: štítok sedí v spoločnom riadku (topRow) a tenká čiarka vedie rovno dolu k vrcholu */
-function renderPins(container, items){
-  container.innerHTML = items.map(it => `<button class="pin" ${it.attr}>
-    <span class="lbl">${esc(it.label)}</span><span class="line"></span></button>`).join('');
-  return [...container.children];
-}
-function updatePinPositions(stage, pinEls, items, topRow){
-  pinEls.forEach((el, i) => {
-    const p = stage.project(items[i].pos);
-    const row = topRow + (items[i].lift || 0);
-    const line = el.querySelector('.line');
-    el.style.left = p.x.toFixed(1) + 'px';
-    el.style.top = row + 'px';
-    line.style.height = Math.max(3, p.y - row).toFixed(1) + 'px';
-    el.style.opacity = p.behind ? '0' : '1';
-  });
-}
-/* klik na vrchol: skočí na pás trás a zvýrazní tie, čo cezeň vedú */
-function jumpToPoint(name){
-  const grid = $('#homeRoutes'); if(!grid) return;
-  grid.scrollIntoView({ behavior:'smooth', block:'center' });
-  const matches = TRASY.filter(t => t.zastavky.includes(name));
-  $$('#homeRoutes .route-card.point-hit').forEach(c => c.classList.remove('point-hit'));
-  if(matches.length){
-    matches.forEach(t => { const c = grid.querySelector(`[data-route="${t.id}"]`); if(c) c.classList.add('point-hit'); });
-    toast(`${matches.length === 1 ? 'Trasa' : 'Trasy'} cez ${name}: ${matches.map(t => t.nazov).join(', ')}`);
-  } else toast(`Zatiaľ žiadna trasa cez ${name}.`);
-  setTimeout(() => $$('#homeRoutes .route-card.point-hit').forEach(c => c.classList.remove('point-hit')), 3200);
-}
+/* ===== Domov: jednotné hero 3D ===== */
 
-let carIdx = 0, carTimer = null, carPaused = false, heroStage = null, heroPinEls = [], heroPinItems = [], heroTickEls = [], heroTickItems = [];
-function renderCarousel(){
-  if(!window.THREE){ console.warn('THREE sa nenačítalo, 3D hero preskočený'); return; }
-  heroStage = makeSpatialStage($('#heroCanvas'));
-  heroStage.onFrame = () => {
-    updatePinPositions(heroStage, heroPinEls, heroPinItems, 26);
-    heroTickEls.forEach((el, i) => { const p = heroStage.project(heroTickItems[i].pos); el.style.left = p.x.toFixed(1) + 'px'; el.style.opacity = p.behind ? '0' : '1'; });
+const HeroRelief = (() => {
+  const hero = document.getElementById('hero');
+  const canvas = document.getElementById('heroCanvas');
+  const pins = document.getElementById('heroPins');
+
+  const crops = {
+    'Nízke Tatry': { from:230, to:560 },
+    'Malá Fatra': { from:60, to:950 },
+    'Veľká Fatra': { from:40, to:960 }
   };
-  $('#carDots').innerHTML = HERO_RANGES.map((rg, n) => `<button aria-label="${rg}" class="${n ? '' : 'on'}" data-i="${n}"></button>`).join('');
-  $$('#carDots button').forEach(b => b.addEventListener('click', () => goSlide(+b.dataset.i)));
-  heroStage.start();
-  renderHutStrip();
-  goSlide(0);
-}
-function goSlide(i){
-  carIdx = (i + HERO_RANGES.length) % HERO_RANGES.length;
-  $$('#carDots button').forEach((b, n) => b.classList.toggle('on', n === carIdx));
-  const rg = HERO_RANGES[carIdx], cnt = MIESTA.filter(p => p.pohorie === rg).length;
-  $('#rangeName').innerHTML = `<small>${cnt} ${cnt === 1 ? 'miesto' : cnt < 5 ? 'miesta' : 'miest'} na spanie · ilustrácia</small>${rg}`;
-  const canvas = $('#heroCanvas');
-  canvas.style.transition = 'opacity .25s ease'; canvas.style.opacity = '.15';
-  setTimeout(() => {
-    const mesh = buildRangeTerrain(rg);
-    heroStage.setMesh(mesh);
-    const rebuild = () => {
-      const halfW = visibleHalfWidthAt(heroStage.camera, mesh.position.z) * .82;
-      const pts = HERO_POINTS[rg] || [];
-      // skutočný kompasový azimut z bodu v doline (juh od ťažiska bodov) na každý vrchol —
-      // presne ako na turistických panorámach, nie len poradie podľa dĺžky
-      const cLat = pts.reduce((s, p) => s + p.gps[0], 0) / pts.length - .07;
-      const cLon = pts.reduce((s, p) => s + p.gps[1], 0) / pts.length;
-      const bearings = unwrapBearings(pts.map(p => bearingTo([cLat, cLon], p.gps)));
-      const brMn = Math.min(...bearings), brMx = Math.max(...bearings);
-      heroPinItems = pts.map((p, idx) => {
-        const xNorm = pts.length > 1 ? (bearings[idx] - brMn) / (brMx - brMn) * 1000 : 500;
-        return { pos:pointWorldPos(mesh, xNorm, halfW), label:p.name };
-      });
-      // blízke vrcholy (podľa premietnutej X na obrazovke) striedavo o riadok nižšie, nech sa štítky neprekrývajú
-      const screenX = heroPinItems.map(it => heroStage.project(it.pos).x);
-      heroPinItems.forEach((it, idx) => {
-        const near = screenX.some((x, j) => j !== idx && Math.abs(x - screenX[idx]) < 85);
-        it.lift = near && idx % 2 ? 15 : 0;
-      });
-      heroPinEls = renderPins($('#heroPins'), heroPinItems.map(it => ({ label:it.label, attr:`data-point="${esc(it.label)}"` })));
-      const peakAlt = Math.max(...PROFILY[rg].body.map(b => b[1]));
-      const tickY = (peakAlt - mesh.userData.altMin) * mesh.userData.heightScale + mesh.position.y + 1.1;
-      heroTickItems = pts.length > 1 ? degreeTicks(brMn, brMx).map(deg => {
-        const xNorm = (deg - brMn) / (brMx - brMn) * 1000;
-        const worldX = (xNorm / 1000 - .5) * 2 * halfW;
-        return { pos:new THREE.Vector3(worldX, tickY, mesh.position.z - mesh.userData.wallDepth / 2 - .05), deg };
-      }) : [];
-      $('#heroPins').querySelectorAll('.tick').forEach(el => el.remove());
-      heroTickEls = heroTickItems.map(it => {
-        const el = document.createElement('div'); el.className = 'tick';
-        el.innerHTML = `${Math.round(((it.deg % 360) + 360) % 360)}°<span class="mark"></span>`;
-        $('#heroPins').appendChild(el);
-        return el;
+
+  /* Vlastné rozloženie má prednosť pred staršími hero vrstvami. */
+  const style = document.createElement('style');
+
+  style.textContent = `
+    #hero.hero-final {
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr);
+      grid-template-rows:auto clamp(340px,37vw,540px) auto;
+      height:auto !important;
+      min-height:0 !important;
+      background:var(--surface) !important;
+      color:var(--ink);
+    }
+
+    #hero.hero-final::before,
+    #hero.hero-final::after {
+      display:none !important;
+    }
+
+    #hero.hero-final .hero-copy {
+      display:contents !important;
+    }
+
+    #hero.hero-final .hero-copy > .wrap:first-child {
+      grid-area:1/1;
+      position:relative;
+      inset:auto;
+      z-index:2;
+      width:100%;
+      padding-top:38px;
+      padding-bottom:24px;
+      background:var(--surface);
+    }
+
+    #hero.hero-final h1 {
+      font-size:clamp(1.8rem,6.5vw,6rem) !important;
+      line-height:1.02 !important;
+      letter-spacing:-.055em !important;
+      font-weight:800 !important;
+      color:var(--ink) !important;
+      max-width:none;
+    }
+
+    #hero.hero-final h1 em,
+    #hero.hero-final .eyebrow {
+      color:var(--brand-dark) !important;
+    }
+
+    #hero.hero-final :is(
+      h1,h1 em,.lead,.eyebrow,.range-name,.lbl
+    ) {
+      text-shadow:none !important;
+      filter:none !important;
+      animation:none !important;
+    }
+
+    #hero.hero-final .lead {
+      color:var(--ink-soft) !important;
+      max-width:64ch;
+      margin:16px 0;
+    }
+
+    #hero.hero-final .bar-accent {
+      display:none;
+    }
+
+    #hero.hero-final #heroCanvas {
+      display:block;
+      position:relative !important;
+      grid-area:2/1;
+      inset:auto !important;
+      width:100% !important;
+      height:100% !important;
+      min-width:0;
+      min-height:0;
+      contain:size;
+      cursor:default;
+      opacity:1 !important;
+    }
+
+    #hero.hero-final #heroPins {
+      display:block !important;
+      position:relative !important;
+      grid-area:2/1;
+      inset:auto !important;
+      width:100%;
+      height:100%;
+      z-index:3;
+      pointer-events:none;
+      overflow:hidden;
+    }
+
+    #hero.hero-final #heroPins::before {
+      content:"";
+      position:absolute;
+      top:19px;
+      left:12px;
+      right:12px;
+      border-top:1px solid var(--line);
+    }
+
+    #hero.hero-final #heroPins .tick {
+      position:absolute !important;
+      top:0;
+      transform:translateX(-50%);
+      height:34px;
+      min-width:34px;
+      padding:0;
+      border:0;
+      background:transparent;
+      color:var(--ink) !important;
+      font:600 10px/1.3 var(--font-body);
+      letter-spacing:0;
+      pointer-events:auto;
+      cursor:pointer;
+    }
+
+    #hero.hero-final #heroPins .tick .mark {
+      display:block;
+      width:1px;
+      height:6px;
+      margin:4px auto 0;
+      background:var(--ink) !important;
+    }
+
+    #hero.hero-final #heroPins .pin {
+      position:absolute !important;
+      display:block;
+      transform:translateX(-50%);
+      padding:0;
+      border:0;
+      background:transparent;
+      color:var(--ink) !important;
+      pointer-events:auto;
+      cursor:pointer;
+      transition:none;
+    }
+
+    #hero.hero-final #heroPins .pin .lbl {
+      display:block;
+      white-space:nowrap;
+      font:600 11px/1.4 var(--font-body);
+      letter-spacing:0;
+      color:var(--ink) !important;
+      background:var(--surface) !important;
+      border-radius:0;
+      padding:2px 4px;
+      box-shadow:inset 0 1px currentColor;
+      transform:translateX(var(--shift,0px));
+    }
+
+    #hero.hero-final #heroPins .pin .line {
+      position:absolute;
+      left:50%;
+      top:100%;
+      width:1px;
+      background:var(--ink) !important;
+      opacity:.48;
+      pointer-events:none;
+    }
+
+    #hero.hero-final #heroPins .pin .line::after {
+      content:"";
+      position:absolute;
+      bottom:0;
+      left:-1px;
+      width:3px;
+      height:3px;
+      background:currentColor;
+    }
+
+    #hero.hero-final #heroPins
+    .pin:is(:hover,:focus-visible,.selected) .lbl {
+      color:var(--brand-dark) !important;
+      box-shadow:inset 0 2px currentColor;
+    }
+
+    #hero.hero-final #heroPins :focus-visible {
+      outline:2px solid var(--brand);
+      outline-offset:3px;
+    }
+
+    #hero.hero-final .hero-bottom {
+      grid-area:3/1 !important;
+      position:relative;
+      inset:auto;
+      align-self:auto;
+      display:flex !important;
+      justify-content:space-between !important;
+      align-items:center;
+      width:100%;
+      padding-top:18px;
+      padding-bottom:22px;
+      background:var(--surface);
+      border-top:1px solid var(--line);
+      pointer-events:auto;
+    }
+
+    #hero.hero-final .range-name {
+      color:var(--ink) !important;
+      font-size:clamp(1.2rem,2.5vw,2rem) !important;
+      text-align:left;
+    }
+
+    #hero.hero-final .range-name small {
+      color:var(--ink-soft) !important;
+      font-size:.75rem;
+    }
+
+    #hero.hero-final .btn.ghost {
+      color:var(--ink) !important;
+      border-color:var(--line);
+    }
+
+    #hero.hero-final .btn.glow {
+      background:var(--brand);
+      border-color:var(--brand);
+      color:var(--surface);
+    }
+
+    #hero.hero-final .car-ctrl .icon-btn {
+      color:var(--ink) !important;
+      background:var(--surface) !important;
+      border:1px solid var(--line);
+      width:44px;
+      height:44px;
+      border-radius:6px;
+    }
+
+    #hero.hero-final .car-dots button {
+      background:transparent !important;
+      color:var(--ink);
+      width:28px;
+      height:44px;
+    }
+
+    #hero.hero-final .car-dots button::before {
+      content:"";
+      display:block;
+      width:6px;
+      height:6px;
+      border:1px solid currentColor;
+      border-radius:50%;
+      margin:auto;
+    }
+
+    #hero.hero-final .car-dots button.on::before {
+      background:var(--brand);
+    }
+
+    #hero.hero-final #carPause {
+      display:none !important;
+    }
+
+    @media(max-width:600px) {
+      #hero.hero-final {
+        grid-template-rows:auto 355px auto;
+      }
+
+      #hero.hero-final .hero-bottom {
+        flex-direction:column;
+        align-items:flex-start;
+        gap:14px;
+      }
+
+      #hero.hero-final #heroPins .pin .lbl {
+        font-size:10px;
+      }
+    }
+  `;
+
+  document.head.append(style);
+  hero.classList.add('hero-final');
+
+  function terrainGray(name) {
+    const value = getComputedStyle(document.documentElement)
+      .getPropertyValue('--' + name)
+      .trim();
+
+    const color = new THREE.Color(value).convertSRGBToLinear();
+
+    return new THREE.Color().setScalar(
+      color.r * .2126 + color.g * .7152 + color.b * .0722
+    );
+  }
+
+  function hash(x, y) {
+    const value = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return value - Math.floor(value);
+  }
+
+  function noise(x, y) {
+    const a = Math.floor(x);
+    const b = Math.floor(y);
+    const u = x - a;
+    const v = y - b;
+    const sx = u * u * (3 - 2 * u);
+    const sy = v * v * (3 - 2 * v);
+
+    return THREE.MathUtils.lerp(
+      THREE.MathUtils.lerp(hash(a,b), hash(a+1,b), sx),
+      THREE.MathUtils.lerp(hash(a,b+1), hash(a+1,b+1), sx),
+      sy
+    ) - .5;
+  }
+
+  function fbm(x, y) {
+    let result = 0;
+    let amplitude = .5;
+
+    for (let octave = 0; octave < 5; octave++) {
+      result += noise(x,y) * amplitude;
+      x *= 2.07;
+      y *= 2.07;
+      amplitude *= .49;
+    }
+
+    return result;
+  }
+
+  function ridgeAlt(body, x) {
+    if (x <= body[0][0]) return body[0][1];
+
+    for (let i = 1; i < body.length; i++) {
+      if (x <= body[i][0]) {
+        const a = body[i-1];
+        const b = body[i];
+
+        return THREE.MathUtils.lerp(
+          a[1],
+          b[1],
+          (x - a[0]) / (b[0] - a[0])
+        );
+      }
+    }
+
+    return body[body.length-1][1];
+  }
+
+  let bump = null;
+
+  function ridgeRockTexture() {
+    if (bump) return bump;
+
+    const image = document.createElement('canvas');
+    image.width = image.height = 512;
+
+    const ctx = image.getContext('2d');
+    const pixels = ctx.createImageData(512,512);
+
+    for (let y = 0; y < 512; y++) {
+      for (let x = 0; x < 512; x++) {
+        const grain = fbm(x * .08,y * .08) * 60
+          + noise(x * .9,y * .9) * 15;
+
+        const seam = Math.exp(
+          -Math.abs(fbm(x * .04 + 31,y * .11)) * 70
+        ) * 23;
+
+        const value = Math.max(
+          0,
+          Math.min(255,145 + grain - seam)
+        );
+
+        const i = (y * 512 + x) * 4;
+        pixels.data[i] = value;
+        pixels.data[i+1] = value;
+        pixels.data[i+2] = value;
+        pixels.data[i+3] = 255;
+      }
+    }
+
+    ctx.putImageData(pixels,0,0);
+
+    bump = new THREE.CanvasTexture(image);
+    bump.wrapS = bump.wrapT = THREE.RepeatWrapping;
+    bump.repeat.set(8,5);
+
+    return bump;
+  }
+
+  function buildRangeTerrain(range) {
+    const body = PROFILY[range].body;
+    const crop = crops[range] || {from:0,to:1000};
+
+    const values = [
+      ridgeAlt(body,crop.from),
+      ridgeAlt(body,crop.to),
+      ...body
+        .filter(point => point[0] > crop.from && point[0] < crop.to)
+        .map(point => point[1])
+    ];
+
+    const low = Math.min(...values);
+    const heightScale = 3.4 / Math.max(
+      1,
+      Math.max(...values) - low
+    );
+
+    const seed = [...range].reduce(
+      (sum,char) => sum + char.charCodeAt(0),
+      0
+    );
+
+    const W = 15;
+    const D = 9;
+    const back = -2.1;
+    const nx = 480;
+    const nz = 210;
+
+    const geometry = new THREE.PlaneGeometry(W,D,nx,nz);
+    geometry.rotateX(-Math.PI / 2);
+    geometry.translate(0,0,back + D / 2);
+
+    const positions = geometry.attributes.position;
+    const cavities = new Float32Array(positions.count);
+
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i);
+      const z = positions.getZ(i);
+      const depth = (z - back) / D;
+
+      const crest = Math.exp(-depth * 14);
+      const slope = Math.sin(Math.PI * depth);
+      const warp = fbm(x * .65 + seed,z * .42);
+
+      const bodyX = crop.from
+        + (x / W + .5) * (crop.to - crop.from)
+        + warp * 60 * (1 - crest);
+
+      const ridge = .65
+        + (ridgeAlt(body,bodyX) - low) * heightScale;
+
+      const mass = ridge * Math.exp(-depth * 1.3);
+      const flow = x + warp * .75 + depth * .45;
+
+      const broad = fbm(flow * 1.1 + seed,z * .38);
+      const medium = fbm(flow * 3.1 + seed,z * .92);
+      const fine = fbm(flow * 8.5 + seed,z * 2.8);
+
+      const gully = Math.exp(
+        -Math.abs(broad + medium * .22) * 36
+      );
+      const branch = Math.exp(
+        -Math.abs(medium + fine * .2) * 39
+      );
+
+      const incision = (gully * .38 + branch * .12) * slope;
+
+      const ribs = (
+        Math.abs(broad) * 2.2 + Math.abs(medium) * .65
+      ) * slope;
+
+      const crestDetail = fbm(x * 5 + seed,7) * .12
+        + fbm(x * 16 + seed,17) * .035;
+
+      const y = mass
+        + (ribs - incision) * Math.min(1.4,ridge * .48)
+        + fbm(x * 16 + seed,z * 11) * .07
+        + Math.sin(mass * 21 + x * .9 + warp * 4) * .01 * slope
+        + crestDetail * crest;
+
+      positions.setY(i,y);
+      cavities[i] = incision;
+    }
+
+    geometry.computeVertexNormals();
+
+    const normals = geometry.attributes.normal;
+    const colors = new Float32Array(positions.count * 3);
+    const paper = terrainGray('bg');
+    const ink = terrainGray('ink');
+    const color = new THREE.Color();
+
+    for (let i = 0; i < positions.count; i++) {
+      const steepness = 1 - Math.max(0,normals.getY(i));
+
+      const shade = THREE.MathUtils.clamp(
+        .76
+          + steepness * .14
+          + cavities[i] * .22
+          - positions.getY(i) * .016,
+        .62,
+        .94
+      );
+
+      color.copy(paper).lerp(ink,shade);
+      color.toArray(colors,i * 3);
+    }
+
+    geometry.setAttribute(
+      'color',
+      new THREE.BufferAttribute(colors,3)
+    );
+
+    const material = new THREE.MeshStandardMaterial({
+      vertexColors:true,
+      roughness:1,
+      metalness:0,
+      bumpMap:ridgeRockTexture(),
+      bumpScale:.028,
+      side:THREE.DoubleSide
+    });
+
+    const surface = new THREE.Mesh(geometry,material);
+    surface.castShadow = true;
+    surface.receiveShadow = true;
+
+    const model = new THREE.Group();
+    model.add(surface);
+    model.position.y = -2.3;
+
+    model.userData = {
+      body,crop,W,D,back,nx,nz,surface
+    };
+
+    return model;
+  }
+
+  /* Vzdialené svahy sú dekoratívne a nemajú pomenované vrcholy. */
+  function distantRidges() {
+    const geometry = new THREE.PlaneGeometry(65,24,230,80);
+    geometry.rotateX(-Math.PI / 2);
+
+    const positions = geometry.attributes.position;
+
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i);
+      const z = positions.getZ(i);
+
+      positions.setY(
+        i,
+        -.9 + fbm(x * .3 + 41,z * .3) * 4 + fbm(x,z) * .5
+      );
+    }
+
+    geometry.computeVertexNormals();
+
+    const material = new THREE.MeshStandardMaterial({
+      color:terrainGray('bg').lerp(terrainGray('ink'),.48),
+      roughness:1
+    });
+
+    const mesh = new THREE.Mesh(geometry,material);
+    mesh.position.z = -16;
+
+    return mesh;
+  }
+
+  /*
+   * Bod sa odčíta z vrcholov skutočnej geometrie.
+   * Výrez profilu aj transformácia modelu sú súčasťou výpočtu.
+   */
+  function pointWorldPos(model,bodyX) {
+    const {crop,W,back,nx,surface} = model.userData;
+
+    const gridX = THREE.MathUtils.clamp(
+      (bodyX - crop.from) / (crop.to - crop.from) * nx,
+      0,
+      nx
+    );
+
+    const left = Math.min(nx - 1,Math.floor(gridX));
+    const fraction = gridX - left;
+    const positions = surface.geometry.attributes.position;
+
+    const y = THREE.MathUtils.lerp(
+      positions.getY(left),
+      positions.getY(left + 1),
+      fraction
+    );
+
+    return model.localToWorld(
+      new THREE.Vector3(
+        (gridX / nx - .5) * W,
+        y,
+        back
+      )
+    );
+  }
+
+  let renderer = null;
+  let scene;
+  let camera;
+  let light;
+  let fill;
+  let model = null;
+  let current = 0;
+  let visible = false;
+  let frame = 0;
+  let pinItems = [];
+  let tickItems = [];
+  let hutsReady = false;
+
+  function invalidate() {
+    if (visible && !frame && renderer) {
+      frame = requestAnimationFrame(draw);
+    }
+  }
+
+  function dispose(object) {
+    if (!object) return;
+
+    scene.remove(object);
+    object.traverse(node => {
+      node.geometry?.dispose();
+      node.material?.dispose();
+    });
+  }
+
+  function project(vector) {
+    const point = vector.clone().project(camera);
+
+    return {
+      x:(point.x * .5 + .5) * canvas.clientWidth,
+      y:(.5 - point.y * .5) * canvas.clientHeight
+    };
+  }
+
+  function draw() {
+    frame = 0;
+
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    if (!width || !height || !model) return;
+
+    renderer.setSize(width,height,false);
+
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+
+    const distance = camera.position.z - model.userData.back;
+    const halfWidth = distance
+      * Math.tan(camera.fov * Math.PI / 360)
+      * camera.aspect;
+
+    model.scale.x = 2 * halfWidth * .94 / model.userData.W;
+    model.updateMatrixWorld(true);
+
+    renderer.render(scene,camera);
+
+    const lanes = [];
+
+    const placed = pinItems.map(item => {
+      const point = project(pointWorldPos(model,item.x));
+      const labelWidth = item.el.firstElementChild.offsetWidth;
+
+      const left = THREE.MathUtils.clamp(
+        point.x - labelWidth / 2,
+        6,
+        width - labelWidth - 6
+      );
+
+      return {item,point,labelWidth,left};
+    }).sort((a,b) => a.left - b.left);
+
+    for (const {item,point,labelWidth,left} of placed) {
+      let lane = lanes.findIndex(right => right + 8 <= left);
+
+      if (lane < 0) lane = lanes.length;
+      lanes[lane] = left + labelWidth;
+
+      const top = 45 + lane * 23;
+
+      item.el.style.left = point.x + 'px';
+      item.el.style.top = top + 'px';
+      item.el.style.setProperty(
+        '--shift',
+        left + labelWidth / 2 - point.x + 'px'
+      );
+
+      item.el.lastElementChild.style.height = Math.max(
+        0,
+        point.y - top - item.el.offsetHeight
+      ) + 'px';
+    }
+
+    for (const item of tickItems) {
+      item.el.style.left = project(
+        pointWorldPos(model,item.x)
+      ).x + 'px';
+    }
+  }
+
+  function interpolate(anchors,value,input,output) {
+    const sorted = [...anchors].sort(
+      (a,b) => a[input] - b[input]
+    );
+
+    let i = 1;
+    while (i < sorted.length - 1 && value > sorted[i][input]) {
+      i++;
+    }
+
+    const a = sorted[i-1];
+    const b = sorted[i];
+
+    return THREE.MathUtils.lerp(
+      a[output],
+      b[output],
+      (value - a[input]) / (b[input] - a[input] || 1)
+    );
+  }
+
+  function go(index) {
+    current = (index + HERO_RANGES.length) % HERO_RANGES.length;
+    carIdx = current;
+
+    const range = HERO_RANGES[current];
+
+    document.querySelectorAll('#carDots button').forEach(
+      (button,i) => {
+        button.classList.toggle('on',i === current);
+        button.setAttribute(
+          'aria-current',
+          i === current ? 'true' : 'false'
+        );
+      }
+    );
+
+    const count = MIESTA.filter(
+      place => place.pohorie === range
+    ).length;
+
+    document.getElementById('rangeName').innerHTML =
+      '<small>' + count
+      + ' miest na spanie · ilustrácia hrebeňa</small>'
+      + esc(range);
+
+    if (!renderer) return;
+
+    dispose(model);
+    model = buildRangeTerrain(range);
+    scene.add(model);
+
+    const dusk = range === 'Veľká Fatra';
+    light.intensity = dusk ? 1.10 : 1.40;
+    fill.intensity = dusk ? .25 : .40;
+    light.position.set(-7,dusk ? 2.6 : 3.8,1);
+
+    const source = HERO_POINTS[range] || [];
+    const origin = [
+      source.reduce((sum,point) => sum + point.gps[0],0)
+        / source.length - .07,
+      source.reduce((sum,point) => sum + point.gps[1],0)
+        / source.length
+    ];
+
+    const bearings = unwrapBearings(
+      source.map(point => bearingTo(origin,point.gps))
+    );
+
+    const anchors = source.map((point,i) => {
+      const peak = model.userData.body.find(
+        row => row[2] === point.name
+      );
+
+      return peak ? {
+        name:point.name,
+        x:peak[0],
+        bearing:bearings[i]
+      } : null;
+    }).filter(Boolean);
+
+    const {from,to} = model.userData.crop;
+    const shown = anchors.filter(
+      point => point.x >= from && point.x <= to
+    );
+
+    pins.replaceChildren();
+    pinItems = [];
+    tickItems = [];
+
+    for (const point of shown) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'pin';
+      button.dataset.point = point.name;
+
+      button.setAttribute(
+        'aria-label',
+        point.name + ' — zobraziť súvisiace trasy'
+      );
+
+      button.innerHTML =
+        '<span class="lbl">' + esc(point.name) + '</span>'
+        + '<span class="line"></span>';
+
+      pins.append(button);
+      pinItems.push({...point,el:button});
+    }
+
+    if (anchors.length > 1) {
+      const ends = [
+        interpolate(anchors,from,'x','bearing'),
+        interpolate(anchors,to,'x','bearing')
+      ];
+
+      const min = Math.min(...ends);
+      const max = Math.max(...ends);
+
+      for (const degree of degreeTicks(min,max)) {
+        const x = interpolate(anchors,degree,'bearing','x');
+        if (x < from || x > to) continue;
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'tick';
+
+        const angle = (Math.round(degree) % 360 + 360) % 360;
+        const directions = ['S','SV','V','JV','J','JZ','Z','SZ'];
+        const direction = directions[Math.round(angle / 45) % 8];
+
+        button.innerHTML = angle + '°'
+          + (angle % 45 === 0 ? ' ' + direction : '')
+          + '<span class="mark"></span>';
+
+        button.setAttribute(
+          'aria-label',
+          angle + ' stupňov — zvýrazniť najbližší vrchol'
+        );
+
+        button.addEventListener('click',() => {
+          const nearest = pinItems.reduce((a,b) =>
+            Math.abs(b.bearing - degree)
+              < Math.abs(a.bearing - degree) ? b : a
+          );
+
+          pinItems.forEach(point => {
+            point.el.classList.toggle(
+              'selected',
+              point === nearest
+            );
+          });
+
+          nearest.el.focus({preventScroll:true});
+        });
+
+        pins.append(button);
+        tickItems.push({x,el:button});
+      }
+    }
+
+    invalidate();
+  }
+
+  /* Samostatný dekoratívny pás chát používa pôvodné dátové ID. */
+  function renderHuts() {
+    if (hutsReady || !window.THREE) return;
+    hutsReady = true;
+
+    const hutCanvas = document.getElementById('hutCanvas');
+    const holder = document.getElementById('hutPins');
+
+    const hutRenderer = new THREE.WebGLRenderer({
+      canvas:hutCanvas,
+      antialias:true,
+      alpha:true
+    });
+
+    hutRenderer.setPixelRatio(
+      Math.min(devicePixelRatio || 1,1.5)
+    );
+    hutRenderer.outputEncoding = THREE.sRGBEncoding;
+
+    const hutScene = new THREE.Scene();
+    const hutCamera = new THREE.PerspectiveCamera(45,1,.1,100);
+
+    hutCamera.position.set(0,2,8);
+    hutCamera.lookAt(0,0,0);
+
+    hutScene.add(
+      new THREE.AmbientLight(terrainGray('surface'),.65)
+    );
+
+    const key = new THREE.DirectionalLight(
+      terrainGray('surface'),
+      1
+    );
+    key.position.set(-5,5,3);
+    hutScene.add(key);
+
+    const geometry = new THREE.PlaneGeometry(16,4,100,24);
+    geometry.rotateX(-Math.PI / 2);
+
+    const positions = geometry.attributes.position;
+
+    for (let i = 0; i < positions.count; i++) {
+      positions.setY(
+        i,
+        fbm(
+          positions.getX(i) * .5,
+          positions.getZ(i) * .6
+        ) * .8 - .6
+      );
+    }
+
+    geometry.computeVertexNormals();
+
+    hutScene.add(new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({
+        color:terrainGray('bg').lerp(terrainGray('ink'),.5),
+        roughness:1,
+        side:THREE.DoubleSide
+      })
+    ));
+
+    const huts = HERO_HUTY.map(placeById).filter(Boolean);
+
+    holder.innerHTML = huts.map(place =>
+      '<button class="pin" data-open="' + esc(place.id) + '">'
+      + '<span class="lbl">' + esc(place.nazov) + '</span>'
+      + '<span class="line"></span></button>'
+    ).join('');
+
+    const drawHuts = () => {
+      const width = hutCanvas.clientWidth;
+      const height = hutCanvas.clientHeight;
+      if (!width || !height) return;
+
+      hutRenderer.setSize(width,height,false);
+      hutCamera.aspect = width / height;
+      hutCamera.updateProjectionMatrix();
+      hutRenderer.render(hutScene,hutCamera);
+
+      [...holder.children].forEach((element,i) => {
+        element.style.left =
+          10 + (i + .5) / huts.length * 80 + '%';
+
+        element.style.top = 18 + (i % 2) * 22 + 'px';
+
+        element.lastElementChild.style.height = Math.max(
+          12,
+          height * .45 - 18 - (i % 2) * 22
+        ) + 'px';
       });
     };
-    // #page-domov môže byť pri prvom vykreslení ešte neviditeľná (canvas 0×0) — resize() to
-    // zachytí a zavolá rebuild znova, hneď ako bude mať canvas reálny rozmer
-    heroStage.onResize = rebuild;
-    heroStage.resize();
-    rebuild();
-    canvas.style.opacity = '1';
-  }, 180);
+
+    new ResizeObserver(drawHuts).observe(hutCanvas);
+  }
+
+  function init() {
+    if (renderer) {
+      go(current);
+      return;
+    }
+
+    if (window.THREE) {
+      try {
+        renderer = new THREE.WebGLRenderer({
+          canvas,
+          antialias:true,
+          alpha:true
+        });
+
+        renderer.setPixelRatio(
+          Math.min(devicePixelRatio || 1,1.75)
+        );
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(
+          terrainGray('surface').convertLinearToSRGB(),
+          12,
+          38
+        );
+
+        camera = new THREE.PerspectiveCamera(38,1,.1,100);
+        camera.position.set(0,1.65,9.6);
+        camera.lookAt(0,-.55,-1);
+
+        light = new THREE.DirectionalLight(
+          terrainGray('surface'),
+          1.4
+        );
+        light.castShadow = true;
+        light.shadow.mapSize.set(2048,2048);
+
+        Object.assign(light.shadow.camera,{
+          left:-20,
+          right:20,
+          top:10,
+          bottom:-10,
+          near:.5,
+          far:50
+        });
+
+        light.shadow.bias = -.0002;
+        light.shadow.normalBias = .02;
+
+        fill = new THREE.AmbientLight(
+          terrainGray('surface'),
+          .4
+        );
+
+        scene.add(light,fill,distantRidges());
+      } catch (error) {
+        renderer?.dispose();
+        renderer = null;
+        console.warn(
+          '3D panoráma sa nepodarila inicializovať.',
+          error
+        );
+      }
+    }
+
+    document.getElementById('carDots').innerHTML =
+      HERO_RANGES.map((range,i) =>
+        '<button type="button" data-i="' + i
+        + '" aria-label="' + esc(range) + '"></button>'
+      ).join('');
+
+    document.getElementById('carDots').onclick = event => {
+      const button = event.target.closest('[data-i]');
+      if (button) go(Number(button.dataset.i));
+    };
+
+    new ResizeObserver(invalidate).observe(canvas);
+
+    new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      invalidate();
+    }).observe(hero);
+
+    document.fonts?.ready.then(invalidate);
+
+    renderHuts();
+    go(0);
+  }
+
+  return {init,go};
+})();
+
+function bearingTo(from,to) {
+  const radians = degrees => degrees * Math.PI / 180;
+  const lat1 = radians(from[0]);
+  const lat2 = radians(to[0]);
+  const longitude = radians(to[1] - from[1]);
+
+  const y = Math.sin(longitude) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2)
+    - Math.sin(lat1) * Math.cos(lat2) * Math.cos(longitude);
+
+  return (Math.atan2(y,x) * 180 / Math.PI + 360) % 360;
 }
-function renderHutStrip(){
-  const canvas = $('#hutCanvas'); if(!canvas || !window.THREE) return;
-  const stage = makeSpatialStage(canvas);
-  const mesh = buildHutTerrain();
-  stage.setMesh(mesh);
-  const huts = HERO_HUTY.map(id => placeById(id)).filter(Boolean);
-  let pinEls = [], items = [];
-  const rebuild = () => {
-    const halfW = visibleHalfWidthAt(stage.camera, mesh.position.z) * .82;
-    items = huts.map((p, i) => {
-      const xNorm = huts.length > 1 ? i / (huts.length - 1) * 1000 : 500;
-      const worldX = (xNorm / 1000 - .5) * 2 * halfW;
-      const terrainY = Math.max(.05, Math.sin(worldX * .55) * .5 + Math.cos(worldX * .27 + 1.3) * .32 + .5) + .08;
-      return { pos:new THREE.Vector3(worldX, terrainY, mesh.position.z - 1.6 / 2 - .05), label:p.nazov, id:p.id };
+
+function unwrapBearings(bearings) {
+  const radians = degrees => degrees * Math.PI / 180;
+
+  const sumSin = bearings.reduce(
+    (sum,bearing) => sum + Math.sin(radians(bearing)),0
+  );
+  const sumCos = bearings.reduce(
+    (sum,bearing) => sum + Math.cos(radians(bearing)),0
+  );
+
+  const mean = (
+    Math.atan2(sumSin,sumCos) * 180 / Math.PI + 360
+  ) % 360;
+
+  return bearings.map(bearing =>
+    mean + (((bearing - mean + 180) % 360 + 360) % 360 - 180)
+  );
+}
+
+function degreeTicks(min,max) {
+  const span = max - min;
+  const step = span > 60 ? 20 : span > 28 ? 10 : 5;
+  const ticks = [];
+
+  for (
+    let degree = Math.ceil(min / step) * step;
+    degree <= max;
+    degree += step
+  ) {
+    ticks.push(degree);
+  }
+
+  return ticks;
+}
+
+function jumpToPoint(name) {
+  const grid = document.getElementById('homeRoutes');
+  if (!grid) return;
+
+  grid.scrollIntoView({
+    behavior:matchMedia('(prefers-reduced-motion: reduce)').matches
+      ? 'auto'
+      : 'smooth',
+    block:'center'
+  });
+
+  const matches = TRASY.filter(
+    route => route.zastavky.includes(name)
+  );
+
+  grid.querySelectorAll('.point-hit').forEach(card => {
+    card.classList.remove('point-hit');
+  });
+
+  for (const route of matches) {
+    const card = [...grid.querySelectorAll('[data-route]')]
+      .find(element => element.dataset.route === route.id);
+
+    card?.classList.add('point-hit');
+  }
+
+  toast(matches.length
+    ? 'Trasy cez ' + name + ': '
+      + matches.map(route => route.nazov).join(', ')
+    : 'Zatiaľ žiadna trasa cez ' + name + '.'
+  );
+
+  setTimeout(() => {
+    grid.querySelectorAll('.point-hit').forEach(card => {
+      card.classList.remove('point-hit');
     });
-    pinEls = renderPins($('#hutPins'), items.map(it => ({ label:it.label, attr:`data-open="${it.id}"` })));
-  };
-  stage.onResize = rebuild;
-  stage.resize();
-  rebuild();
-  stage.onFrame = () => updatePinPositions(stage, pinEls, items, 16);
-  stage.start();
+  },3200);
 }
-function startCarousel(){
+
+let carIdx = 0;
+let carTimer = null;
+let carPaused = true;
+
+function renderCarousel() {
+  HeroRelief.init();
+}
+
+function goSlide(index) {
+  HeroRelief.go(index);
+}
+
+function startCarousel() {
   stopCarousel();
-  if(carPaused || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  carTimer = setInterval(() => goSlide(carIdx + 1), 9000);       // každých 6 s
 }
-function stopCarousel(){ clearInterval(carTimer); carTimer = null; }
+
+function stopCarousel() {
+  clearInterval(carTimer);
+  carTimer = null;
+}
 
 /* ===== Filtre + zoznam miest (Domov) ===== */
 const MHD_STATIONS = [
