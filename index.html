@@ -694,6 +694,258 @@ body::before{background-position:0 0,0 0,0 0,0 var(--contour-y,0px)}
   @keyframes atlas-pin{40%{scale:1.2}}
   @keyframes atlas-dash{to{stroke-dashoffset:var(--dash-step)}}
 }
+
+/* ╔════════════════════════════════════════════════════════════════╗
+   ║  v8 · REDAKČNÝ REDIZAJN — razantnejšia typografia, farebné bloky║
+   ║  sekcií a hĺbka kariet. Nahrádza ploché v6 rozmery, farby/font  ║
+   ║  z koreňa nemení.                                               ║
+   ╚════════════════════════════════════════════════════════════════╝ */
+
+/* 1. Základ */
+body{font-size:16px;line-height:1.65}
+:root{--radius-lg:14px;--radius-md:6px}
+h1,h2,h3{text-wrap:balance}
+h3{font-size:1.35rem}
+
+button,a,input,select,textarea,summary{-webkit-tap-highlight-color:transparent}
+button{touch-action:manipulation}
+:focus-visible{outline:2px solid var(--brand);outline-offset:4px}
+
+#siteHeader{background:var(--bg);border-bottom:1px solid var(--line)}
+#siteHeader::before{display:none}
+#siteHeader::after{
+  content:"";position:absolute;bottom:-1px;left:0;height:2px;
+  width:calc(var(--reading-progress,0) * 100%);background:var(--brand)}
+.head{gap:24px}
+#mainNav button{font-size:.75rem;letter-spacing:.055em;min-height:46px}
+#mainNav button[aria-current]{background:var(--ink);color:var(--bg);box-shadow:none}
+#mainNav button.cta{border-radius:999px;box-shadow:inset 0 0 0 1px var(--brand)}
+.logo{font-size:1.2rem}
+
+.hero .eyebrow,.range-name small{font-size:.75rem}
+.hero .lead{max-width:58ch}
+.hero .btn{min-height:48px}
+.hero .car-ctrl .icon-btn{border-radius:6px}
+
+section{position:relative;padding-block:clamp(60px,8vw,112px)}
+.section-head{margin-bottom:clamp(24px,4vw,48px)}
+.section-head h2{font-size:clamp(2.15rem,6.5vw,6rem);line-height:.98;letter-spacing:-.065em}
+.section-head p{font-size:1rem;max-width:64ch}
+.eyebrow{font-size:.8rem;line-height:1.4;letter-spacing:.13em}
+.section-head.split{align-items:flex-end}
+.section-head.split > div{max-width:74%}
+
+.btn{min-height:46px;border-width:1px;font-size:.875rem}
+.btn.small{min-height:40px;font-size:.8125rem}
+.chip{min-height:44px;padding:.55em 1em;font-size:.875rem}
+.tag{font-size:.75rem;line-height:1.5;border-radius:4px;padding:.25em .6em}
+.badge{font-size:.6875rem;letter-spacing:.06em;border-radius:3px}
+.icon-btn{min-height:40px}
+
+input,textarea,select{font-size:1rem;border-radius:6px;background:var(--surface)}
+input[type=range]{accent-color:var(--brand);background:transparent}
+input[type=checkbox]{accent-color:var(--brand)}
+input:focus,textarea:focus,select:focus{outline-color:var(--brand)}
+label.field,.f-label{font-size:.875rem}
+.empty{padding:32px;background:var(--surface);border-style:dashed}
+
+/* 2. Domov, farebné sekcie a karusel */
+#page-domov > section:first-of-type{background-color:var(--forest)}
+#page-domov > section:first-of-type .section-head :is(.eyebrow,h2,p){color:var(--bg)}
+#page-domov > section:first-of-type .section-head .btn.ghost{color:var(--bg);border-color:rgba(248,244,238,.4)}
+#page-domov > section:first-of-type .section-head .btn.ghost:hover{background:rgba(248,244,238,.12)}
+#page-domov > section:nth-of-type(2){background:var(--bg)}
+#page-domov > section:nth-of-type(2) .section-head{
+  display:grid;grid-template-columns:1.35fr 1fr;gap:0 8%;align-items:end}
+#page-domov > section:nth-of-type(2) .section-head .eyebrow{grid-column:1/-1}
+#page-domov > section:nth-of-type(2) .section-head p{margin:0;padding-bottom:8px}
+.hut-strip{border:1px solid var(--line);border-radius:0;box-shadow:none}
+
+.banner{min-height:600px;padding-block:clamp(70px,11vw,150px);background-color:var(--brand)}
+.banner h2{max-width:17ch;font-size:clamp(2.7rem,7.8vw,7.5rem);line-height:.95}
+.banner p{font-size:1rem;line-height:1.7;margin-block:28px}
+.banner .eyebrow,.banner .link{color:var(--bg)}
+.banner .caption{font-size:.75rem;color:var(--bg)}
+.banner .link{padding:.5em 1.2em;min-height:48px}
+.banner > svg{opacity:.35;mask-image:linear-gradient(90deg,transparent,black)}
+
+#homeRoutes{grid-auto-columns:min(87%,420px);gap:24px;padding-block:10px 24px}
+#homeRoutes .route-card{border:0}
+.route-dots{gap:4px}
+.route-dots button{width:32px}
+
+.expedition-tools{background:var(--surface);border-block:1px solid var(--line)}
+.expedition-tools .wrap{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.expedition-tools button{
+  display:grid;align-content:center;gap:5px;padding:26px 20px;border:0;
+  border-right:1px solid var(--line);background:transparent;text-align:left;
+  color:var(--ink);font:inherit;cursor:pointer}
+.expedition-tools button:first-child{border-left:1px solid var(--line)}
+.expedition-tools b{font-size:clamp(1.3rem,2.5vw,2.2rem);line-height:1.1;letter-spacing:-.06em}
+.expedition-tools span{font-size:.8125rem;color:var(--ink-soft)}
+.expedition-tools button:hover{background:var(--ok)}
+
+.carousel-tools{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.carousel-arrows{display:flex;gap:8px}
+.carousel-arrows .icon-btn{width:48px;height:48px;color:var(--bg);background:transparent;border-color:var(--bg)}
+.carousel-arrows .icon-btn:disabled{opacity:.3;cursor:default}
+
+/* 3. Karty, hlavná trasa a výber nocľahov */
+.card,.route-card{border:1px solid var(--line);box-shadow:var(--shadow)}
+.card .cover,.route-card .cover{background:var(--forest)}
+.cover-title{padding:48px 24px 22px;background:linear-gradient(transparent,var(--forest))}
+.cover-title h3{font-size:clamp(1.45rem,2.3vw,2rem);line-height:1.08;font-weight:800;letter-spacing:-.05em}
+.cover-title small{display:block;font-size:.75rem;letter-spacing:.065em;margin-bottom:9px;line-height:1.5}
+.coord{font-size:.75rem;letter-spacing:.035em;color:var(--bg)}
+.card .cover{aspect-ratio:6/5}
+.route-card .cover{aspect-ratio:1/1}
+
+.strava{top:48px;left:24px;gap:12px 24px;text-shadow:none}
+.strava b{font-size:1.65rem;font-weight:800}
+.strava small{font-size:.75rem;letter-spacing:.05em}
+.card .body,.route-card .body{padding:22px 24px 26px}
+.route-card .body{gap:14px}
+.route-card .body p{font-size:.9375rem;line-height:1.6}
+.facts{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:8px 14px;font-size:.875rem}
+.facts dd{overflow-wrap:anywhere}
+.facts dt{font-weight:400}
+.card .actions{gap:8px;padding-top:18px;border-top:1px solid var(--line)}
+.card .actions .btn:first-child{flex:1}
+
+.featured{min-height:600px;border:0;background:var(--forest);border-radius:14px}
+.featured > svg{opacity:.8}
+.featured .body{max-width:68%;padding:clamp(24px,5vw,64px);background:linear-gradient(90deg,var(--forest) 40%,transparent)}
+.featured h3{font-size:clamp(2.3rem,5.5vw,5rem);line-height:.99}
+.featured .eyebrow{font-size:.8rem;color:var(--glow)}
+.featured p{max-width:46ch}
+.featured .stat-row{padding-block:18px;gap:20px}
+.featured .stat-row b{font-size:1.4rem}
+
+#routeGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}
+.filters{padding:24px;border:1px solid var(--line);border-radius:8px;background:var(--surface);gap:20px}
+.type-head{padding:24px;margin-bottom:24px;border-inline-start-width:3px}
+.type-head h3{font-size:1.8rem}
+.type-group + .type-group{padding-top:40px;border-top:1px solid var(--line)}
+
+@media(min-width:1100px){
+  #routeGrid .route-card:first-child{grid-column:1/-1;display:grid;grid-template-columns:1.2fr 1fr}
+  #routeGrid .route-card:first-child .cover{aspect-ratio:6/5;height:100%}
+  #routeGrid .route-card:first-child .body{align-content:center;padding:40px}
+}
+
+/* 4. Mapa a Moje trasy */
+:is(#page-mapa,#page-moje) .section-head{max-width:900px}
+:is(#page-mapa,#page-moje) .section-head h2{font-size:clamp(2.8rem,6vw,5.2rem)}
+:is(#page-mapa,#page-moje) section{padding-top:40px}
+#mapPresets{padding-bottom:10px;border-bottom:1px solid var(--line)}
+.map-box{border-radius:8px;box-shadow:var(--shadow)}
+.map-layout{align-items:start}
+#mapSelected{background:var(--surface);border-top-color:var(--glow)}
+#mapRoute{background:var(--surface)}
+#mapRoute .stop-list{margin-top:18px}
+#mapLegend{gap:10px 18px;font-size:.8125rem}
+#mapProfile svg{width:100%;max-height:110px;background:var(--ok);margin-block:12px}
+#mapProfile ol{font-size:.8125rem}
+#page-mapa .filterbar.inline{position:relative;top:auto;background:var(--surface)}
+#page-mapa .wrap > .panel:last-child{padding:0;margin-top:48px !important;border:0;background:transparent;box-shadow:none}
+#page-mapa .wrap > .panel:last-child h2{font-size:clamp(1.8rem,3vw,2.8rem)}
+
+#routeEditor{border-radius:8px;box-shadow:var(--shadow)}
+#routeEditor .editor{gap:24px}
+#routeEditor .field{gap:8px}
+#routeEditor .editor > div:has(#edStops){padding-block:24px;border-block:1px solid var(--line)}
+#routeItems{gap:12px}
+.route-item{padding:20px;border-radius:6px;box-shadow:none}
+.route-item b{font-size:1rem}
+.route-item small{display:inline-block;margin-top:8px;font-size:.8125rem;line-height:1.5}
+.stop-list li{background:var(--bg);padding:10px 8px;border-color:var(--line)}
+.stop-list .n{font-size:.875rem}
+#routeBar{border-radius:10px;padding:12px 14px}
+#routeBar .info small{font-size:.75rem}
+
+@media(min-width:1100px){
+  .map-layout{grid-template-columns:minmax(0,1.9fr) minmax(320px,1fr)}
+  .my-layout{grid-template-columns:300px minmax(0,1fr)}
+  .my-layout > div:first-child{position:sticky;top:calc(var(--header-h) + 24px)}
+}
+
+/* 5. Počasie, formuláre, projekt a detaily */
+#page-pocasie > section:first-child{background-color:var(--forest)}
+#page-pocasie > section:first-child :is(.eyebrow,h2,p){color:var(--bg)}
+#page-pocasie .two{gap:24px}
+#page-pocasie .panel{padding:clamp(24px,3vw,40px)}
+#page-pocasie .panel h3{font-size:1.6rem;line-height:1.12;margin-bottom:20px}
+#page-pocasie .panel li{margin-bottom:12px}
+.quiz label{padding-block:14px;border-bottom:1px solid var(--line)}
+.note{border-radius:6px;font-size:.875rem;line-height:1.65}
+
+#page-pridat .section-head{max-width:1050px}
+#page-pridat .section-head h2{max-width:17ch}
+#page-pridat form{max-width:1080px;padding:clamp(16px,3vw,40px)}
+#page-pridat fieldset{padding:24px;margin-bottom:16px;border-radius:6px}
+#page-pridat legend{font-size:.875rem;letter-spacing:.04em}
+#page-pridat .form-grid{gap:22px}
+
+#page-projekt .section-head h2{max-width:16ch}
+#page-projekt .stats{gap:28px;margin-block:48px !important}
+#page-projekt .stat{line-height:1.6;font-size:.875rem}
+#page-projekt .two{gap:1px;background:var(--line);border:1px solid var(--line)}
+#page-projekt .two .panel{padding:32px;border:0;border-radius:0;box-shadow:none}
+#page-projekt .two .panel h3{font-size:1.5rem;margin-bottom:18px}
+
+.modal,.modal.wide{border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.modal-close{position:sticky;float:right;top:12px;margin:12px 12px -56px 0;background:var(--ink);color:var(--bg)}
+.modal-body{padding:clamp(20px,4vw,42px);gap:24px}
+.modal-body h2{font-size:clamp(1.8rem,4.4vw,3.7rem);line-height:1;letter-spacing:-.06em}
+.modal-cover{overflow:hidden}
+.elev{background:var(--forest);border-radius:6px}
+.timeline .day{border-radius:4px;color:var(--ink)}
+.stop-pill{min-height:40px;font-size:.8125rem;line-height:1.5}
+.stop-pill small{font-size:.6875rem}
+
+footer{margin-top:0;color:var(--bg);background:var(--forest)}
+footer .wrap{padding-top:36px;padding-bottom:120px}
+footer .logo{font-size:clamp(1.8rem,4vw,3.7rem);color:var(--bg)}
+footer .logo span span{color:var(--glow)}
+footer nav{gap:10px 18px;padding-block:16px;border-block:1px solid var(--glow)}
+footer nav button{min-height:44px;color:var(--bg);font-size:.875rem;padding:0}
+footer p{max-width:90ch;font-size:.875rem;color:var(--bg)}
+#toast{font-size:.875rem;max-width:min(92vw,680px);box-shadow:var(--shadow-up)}
+
+/* 6. Pohyb a mobilné rozloženie */
+.editorial-word{display:inline-block;opacity:var(--word-opacity,1);filter:blur(var(--word-blur,0px));translate:0 var(--word-y,0px)}
+.section-head h2.atlas-reveal,.banner h2.atlas-reveal{animation:none !important}
+
+@media(prefers-reduced-motion:no-preference) and (hover:hover){
+  .btn{transition:background .2s,border-color .2s,color .2s}
+  .card,.route-card{transition:transform .3s ease,box-shadow .3s ease}
+  .card:hover,.route-card:hover{transform:translateY(-5px);box-shadow:var(--shadow-up)}
+}
+@media(prefers-reduced-motion:reduce){
+  .editorial-word{opacity:1;filter:none;translate:none}
+}
+
+@media(max-width:800px){
+  .section-head.split > div{max-width:none}
+  #page-domov > section:nth-of-type(2) .section-head{display:block}
+  #page-domov > section:nth-of-type(2) .section-head p{margin-top:20px}
+  .expedition-tools button{padding:22px 12px}
+  .expedition-tools span{font-size:.75rem}
+  .featured{min-height:560px}
+  .featured .body{max-width:none;background:linear-gradient(90deg,var(--forest),transparent)}
+}
+@media(max-width:639px){
+  #routeGrid{grid-template-columns:1fr}
+  .banner{min-height:540px}
+  .filters{padding:16px}
+  .modal,.modal.wide{border-radius:14px 14px 0 0}
+  .expedition-tools .wrap{padding-inline:16px}
+  .expedition-tools button{padding-inline:8px}
+  .expedition-tools b{font-size:1.12rem;letter-spacing:-.04em}
+  #page-pridat fieldset{padding:16px}
+  .stop-list li{padding-inline:6px}
+  #routeBar{border-radius:0;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+}
 </style>
 
 </head>
@@ -3214,6 +3466,182 @@ init();
   };
 
   if($('#page-mapa').classList.contains('active')) renderMap();
+})();
+</script>
+
+<!-- ===== v8: redakčný redizajn — rýchle vstupy, karuselové šípky, scroll efekty ===== -->
+<script>
+(() => {
+  const root = document.documentElement;
+  const main = document.querySelector('main');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const strip = document.getElementById('homeRoutes');
+  const dots = document.querySelector('.route-dots');
+
+  /* Rýchly vstup do hlavných častí plánovania. */
+  const access = document.createElement('div');
+  access.className = 'expedition-tools';
+  access.innerHTML = `
+    <div class="wrap">
+      <button type="button" data-goto="trasy">
+        <b>${TRASY.length} trás</b>
+        <span>Vybrať podľa náročnosti</span>
+      </button>
+      <button type="button" data-goto="mapa">
+        <b>${MIESTA.length} nocľahov</b>
+        <span>Nájsť miesto na mape</span>
+      </button>
+      <button type="button" data-goto="moje">
+        <b>Môj plán</b>
+        <span>Otvoriť uložené trasy</span>
+      </button>
+    </div>
+  `;
+  document.getElementById('hero').after(access);
+
+  /* Spoločné ovládanie šípok a existujúcich bodiek. */
+  const controls = document.createElement('div');
+  controls.className = 'carousel-tools';
+
+  const arrows = document.createElement('div');
+  arrows.className = 'carousel-arrows';
+  arrows.innerHTML = `
+    <button type="button" class="icon-btn"
+      aria-label="Predchádzajúce trasy" data-direction="-1">←</button>
+    <button type="button" class="icon-btn"
+      aria-label="Ďalšie trasy" data-direction="1">→</button>
+  `;
+
+  strip.after(controls);
+  if (dots) controls.append(dots);
+  controls.append(arrows);
+
+  arrows.addEventListener('click', event => {
+    const button = event.target.closest('[data-direction]');
+    if (!button || !strip.firstElementChild) return;
+
+    const gap = parseFloat(getComputedStyle(strip).columnGap) || 0;
+    const distance = strip.firstElementChild.offsetWidth + gap;
+
+    strip.scrollBy({
+      left:Number(button.dataset.direction) * distance,
+      behavior:reduced.matches ? 'auto' : 'smooth'
+    });
+  });
+
+  /* Zachová vnorené elementy nadpisu a obalí jeho slová. */
+  const headings = new Set();
+
+  function prepareHeadings() {
+    main.querySelectorAll(
+      '.section-head h2,.banner h2,.featured h3'
+    ).forEach(heading => {
+      if (headings.has(heading)) return;
+
+      const walker = document.createTreeWalker(
+        heading,
+        NodeFilter.SHOW_TEXT
+      );
+      const nodes = [];
+
+      while (walker.nextNode()) {
+        nodes.push(walker.currentNode);
+      }
+
+      for (const node of nodes) {
+        const fragment = document.createDocumentFragment();
+
+        for (const token of node.textContent.split(/(\s+)/)) {
+          if (!token.trim()) {
+            fragment.append(document.createTextNode(token));
+          } else {
+            const word = document.createElement('span');
+            word.className = 'editorial-word';
+            word.textContent = token;
+            fragment.append(word);
+          }
+        }
+
+        node.replaceWith(fragment);
+      }
+
+      headings.add(heading);
+    });
+
+    for (const heading of headings) {
+      if (!heading.isConnected) headings.delete(heading);
+    }
+  }
+
+  let frame = 0;
+
+  function schedule() {
+    if (!frame) frame = requestAnimationFrame(update);
+  }
+
+  function update() {
+    frame = 0;
+
+    const total = root.scrollHeight - innerHeight;
+    root.style.setProperty(
+      '--reading-progress',
+      total > 0 ? scrollY / total : 0
+    );
+
+    for (const heading of headings) {
+      if (!heading.getClientRects().length) continue;
+
+      const rect = heading.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > innerHeight + 80) continue;
+
+      const words = heading.querySelectorAll('.editorial-word');
+      const progress = reduced.matches ? 1 : Math.max(
+        0,
+        Math.min(
+          1,
+          (innerHeight * .94 - rect.top) / (innerHeight * .30)
+        )
+      );
+
+      words.forEach((word, index) => {
+        const reveal = Math.max(
+          0,
+          Math.min(
+            1,
+            progress * 1.7 - index / words.length * .7
+          )
+        );
+
+        word.style.setProperty('--word-opacity', .38 + reveal * .62);
+        word.style.setProperty('--word-blur', (1 - reveal) * 3 + 'px');
+        word.style.setProperty('--word-y', (1 - reveal) * 10 + 'px');
+      });
+    }
+
+    const limit = strip.scrollWidth - strip.clientWidth;
+    arrows.children[0].disabled = strip.scrollLeft < 4;
+    arrows.children[1].disabled = strip.scrollLeft > limit - 4;
+  }
+
+  addEventListener('scroll', schedule, {passive:true});
+  addEventListener('resize', schedule, {passive:true});
+  strip.addEventListener('scroll', schedule, {passive:true});
+
+  new ResizeObserver(schedule).observe(strip);
+  reduced.addEventListener('change', schedule);
+
+  new MutationObserver(() => {
+    prepareHeadings();
+    schedule();
+  }).observe(main, {
+    childList:true,
+    subtree:true,
+    attributes:true,
+    attributeFilter:['class']
+  });
+
+  prepareHeadings();
+  schedule();
 })();
 </script>
 </body>
