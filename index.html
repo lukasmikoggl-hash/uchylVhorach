@@ -946,6 +946,57 @@ footer p{max-width:90ch;font-size:.875rem;color:var(--bg)}
   .stop-list li{padding-inline:6px}
   #routeBar{border-radius:0;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
 }
+
+/* ╔════════════════════════════════════════════════════════════════╗
+   ║  v9 · PLYNULÉ PRECHODY — jemné prelínanie farebných sekcií       ║
+   ║  namiesto tvrdého vodorovného rezu. Farby sekcií sa nemenia,     ║
+   ║  len spôsob, akým na seba nadväzujú.                             ║
+   ╚════════════════════════════════════════════════════════════════╝ */
+
+/* svetlý variant vrstevnicovej kresby z pozadia stránky — pokračuje aj cez tmavé pásy,
+   nech oko nevidí presnú hranicu, kde sa textúra pozadia "vypína" */
+#page-domov > section:first-of-type,
+.banner,
+footer{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600' fill='none' stroke='%23f8f4ee' stroke-opacity='.06' stroke-width='1.2'%3E%3Cpath d='M0 420c80-60 120-52 190-90 100-54 150-72 240-24 80 42 109 20 170-18v208H0z'/%3E%3Cpath d='M0 500c50-50 130-42 190-74 86-46 150-38 212-10 88 40 100 30 198-10v144H0z'/%3E%3Cpath d='M60 260c60-36 118-42 180-68 66-28 128-40 196-6 72 36 100 20 164-18v120H60z'/%3E%3C/svg%3E");
+  background-size:620px 620px;
+}
+
+/* hero → "Overené trasy": krémová necháva sekciu "dofarbiť sa" namiesto okamžitého skoku */
+#page-domov > section:first-of-type{position:relative;overflow:clip}
+#page-domov > section:first-of-type > .wrap{position:relative;z-index:1}
+#page-domov > section:first-of-type::before{
+  content:"";position:absolute;inset:0 0 auto 0;height:clamp(64px,9vw,130px);
+  background:linear-gradient(var(--bg),transparent);pointer-events:none}
+/* "Overené trasy" → "Chaty a útulne": rovnaký princíp opačným smerom */
+#page-domov > section:first-of-type::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:clamp(64px,9vw,130px);
+  background:linear-gradient(transparent,var(--bg));pointer-events:none}
+
+/* hut-strip nech pôsobí ako karta v kontexte, nie ako orámovaný ostrovček nalepený medzi pásy */
+.hut-strip{border:0;border-radius:var(--radius-lg);box-shadow:var(--shadow)}
+
+/* banner → pätička: jemné prehĺbenie namiesto skoku do najtmavšieho odtieňa */
+.banner{position:relative;overflow:clip}
+.banner::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:clamp(50px,7vw,100px);
+  background:linear-gradient(transparent,rgba(0,0,0,.18));pointer-events:none}
+footer{position:relative;overflow:clip}
+footer::before{
+  content:"";position:absolute;inset:0 0 auto 0;height:clamp(50px,7vw,100px);
+  background:linear-gradient(rgba(0,0,0,.12),transparent);pointer-events:none}
+
+/* rovnaký princíp pre tmavú úvodnú sekciu na stránke Počasie */
+#page-pocasie > section:first-child{position:relative;overflow:clip;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600' fill='none' stroke='%23f8f4ee' stroke-opacity='.06' stroke-width='1.2'%3E%3Cpath d='M0 420c80-60 120-52 190-90 100-54 150-72 240-24 80 42 109 20 170-18v208H0z'/%3E%3Cpath d='M0 500c50-50 130-42 190-74 86-46 150-38 212-10 88 40 100 30 198-10v144H0z'/%3E%3Cpath d='M60 260c60-36 118-42 180-68 66-28 128-40 196-6 72 36 100 20 164-18v120H60z'/%3E%3C/svg%3E");
+  background-size:620px 620px}
+#page-pocasie > section:first-child > .wrap{position:relative;z-index:1}
+#page-pocasie > section:first-child::before{
+  content:"";position:absolute;inset:0 0 auto 0;height:clamp(64px,9vw,130px);
+  background:linear-gradient(var(--bg),transparent);pointer-events:none}
+#page-pocasie > section:first-child::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:clamp(64px,9vw,130px);
+  background:linear-gradient(transparent,var(--bg));pointer-events:none}
 </style>
 
 </head>
