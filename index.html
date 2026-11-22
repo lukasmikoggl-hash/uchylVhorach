@@ -952,51 +952,208 @@ footer p{max-width:90ch;font-size:.875rem;color:var(--bg)}
    ║  namiesto tvrdého vodorovného rezu. Farby sekcií sa nemenia,     ║
    ║  len spôsob, akým na seba nadväzujú.                             ║
    ╚════════════════════════════════════════════════════════════════╝ */
+:root{
+  --flow-edge:clamp(36px,5vw,64px);
 
-/* svetlý variant vrstevnicovej kresby z pozadia stránky — pokračuje aj cez tmavé pásy,
-   nech oko nevidí presnú hranicu, kde sa textúra pozadia "vypína" */
-#page-domov > section:first-of-type,
-.banner,
-footer{
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600' fill='none' stroke='%23f8f4ee' stroke-opacity='.06' stroke-width='1.2'%3E%3Cpath d='M0 420c80-60 120-52 190-90 100-54 150-72 240-24 80 42 109 20 170-18v208H0z'/%3E%3Cpath d='M0 500c50-50 130-42 190-74 86-46 150-38 212-10 88 40 100 30 198-10v144H0z'/%3E%3Cpath d='M60 260c60-36 118-42 180-68 66-28 128-40 196-6 72 36 100 20 164-18v120H60z'/%3E%3C/svg%3E");
-  background-size:620px 620px;
+  /* Odtiene existujúcich --ink a --bg.
+     Textúra je spoločná pre všetky nadväzujúce plochy. */
+  --flow-contours:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='760' height='760' viewBox='0 0 760 760' fill='none'%3E%3Cg stroke='%231f2a24' stroke-opacity='.12' stroke-width='1'%3E%3Cpath id='c' d='M-80 170C100-30 180 280 370 140S660-20 840 170M-80 194C100-6 180 304 370 164S660 4 840 194M-80 218C100 18 180 328 370 188S660 28 840 218M-80 242C100 42 180 352 370 212S660 52 840 242M-80 266C100 66 180 376 370 236S660 76 840 266M-80 290C100 90 180 400 370 260S660 100 840 290M-80 490C100 290 180 600 370 460S660 300 840 490M-80 514C100 314 180 624 370 484S660 324 840 514M-80 538C100 338 180 648 370 508S660 348 840 538M-80 562C100 362 180 672 370 532S660 372 840 562M-80 586C100 386 180 696 370 556S660 396 840 586'/%3E%3C/g%3E%3Cuse href='%23c' transform='translate(0 1)' stroke='%23f1eee6' stroke-opacity='.10' stroke-width='1'/%3E%3C/svg%3E");
 }
 
-/* hero → "Overené trasy": krémová necháva sekciu "dofarbiť sa" namiesto okamžitého skoku */
-#page-domov > section:first-of-type{position:relative;overflow:clip}
-#page-domov > section:first-of-type > .wrap{position:relative;z-index:1}
-#page-domov > section:first-of-type::before{
-  content:"";position:absolute;inset:0 0 auto 0;height:clamp(64px,9vw,130px);
-  background:linear-gradient(var(--bg),transparent);pointer-events:none}
-/* "Overené trasy" → "Chaty a útulne": rovnaký princíp opačným smerom */
-#page-domov > section:first-of-type::after{
-  content:"";position:absolute;inset:auto 0 0 0;height:clamp(64px,9vw,130px);
-  background:linear-gradient(transparent,var(--bg));pointer-events:none}
+/*
+ * Spoločný podklad.
+ * Pevné ukotvenie textúry drží vrstevnice v rovnakej polohe
+ * pri prechode medzi susednými sekciami.
+ */
+.page#page-domov > section,
+.page#page-pocasie > section,
+.page#page-mapa > section,
+.page#page-trasy > section,
+.page#page-projekt > section,
+.page#page-moje > section,
+.page#page-spanie > section,
+.page#page-pridat > section,
+body > footer{
+  --flow-fill:linear-gradient(var(--bg),var(--bg));
 
-/* hut-strip nech pôsobí ako karta v kontexte, nie ako orámovaný ostrovček nalepený medzi pásy */
-.hut-strip{border:0;border-radius:var(--radius-lg);box-shadow:var(--shadow)}
+  background-color:var(--bg);
+  background-image:
+    var(--flow-contours),
+    var(--flow-fill);
 
-/* banner → pätička: jemné prehĺbenie namiesto skoku do najtmavšieho odtieňa */
-.banner{position:relative;overflow:clip}
-.banner::after{
-  content:"";position:absolute;inset:auto 0 0 0;height:clamp(50px,7vw,100px);
-  background:linear-gradient(transparent,rgba(0,0,0,.18));pointer-events:none}
-footer{position:relative;overflow:clip}
-footer::before{
-  content:"";position:absolute;inset:0 0 auto 0;height:clamp(50px,7vw,100px);
-  background:linear-gradient(rgba(0,0,0,.12),transparent);pointer-events:none}
+  background-repeat:repeat,no-repeat;
+  background-size:760px 760px,100% 100%;
+  background-position:center top,0 0;
+  background-attachment:fixed,scroll;
+}
 
-/* rovnaký princíp pre tmavú úvodnú sekciu na stránke Počasie */
-#page-pocasie > section:first-child{position:relative;overflow:clip;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600' fill='none' stroke='%23f8f4ee' stroke-opacity='.06' stroke-width='1.2'%3E%3Cpath d='M0 420c80-60 120-52 190-90 100-54 150-72 240-24 80 42 109 20 170-18v208H0z'/%3E%3Cpath d='M0 500c50-50 130-42 190-74 86-46 150-38 212-10 88 40 100 30 198-10v144H0z'/%3E%3Cpath d='M60 260c60-36 118-42 180-68 66-28 128-40 196-6 72 36 100 20 164-18v120H60z'/%3E%3C/svg%3E");
-  background-size:620px 620px}
-#page-pocasie > section:first-child > .wrap{position:relative;z-index:1}
-#page-pocasie > section:first-child::before{
-  content:"";position:absolute;inset:0 0 auto 0;height:clamp(64px,9vw,130px);
-  background:linear-gradient(var(--bg),transparent);pointer-events:none}
-#page-pocasie > section:first-child::after{
-  content:"";position:absolute;inset:auto 0 0 0;height:clamp(64px,9vw,130px);
-  background:linear-gradient(transparent,var(--bg));pointer-events:none}
+/*
+ * DOMOV
+ * Hero → rýchle vstupy → overené trasy.
+ * Farba sa začne meniť až v samotnej sekcii trás.
+ */
+#page-domov > .expedition-tools{
+  border-block:0;
+}
+
+#page-domov > section:first-of-type{
+  --flow-fill:linear-gradient(
+    to bottom,
+    var(--surface) 0,
+    var(--forest) var(--flow-edge),
+    var(--forest) 100%
+  );
+}
+
+/*
+ * Overené trasy → chaty.
+ * Gradient prebehne v existujúcom hornom odsadení.
+ */
+#page-domov > section:nth-of-type(2){
+  --flow-fill:linear-gradient(
+    to bottom,
+    var(--forest) 0,
+    var(--bg) var(--flow-edge),
+    var(--bg) 100%
+  );
+}
+
+/*
+ * Hut-strip.
+ * Priehľadný rám zachová jeho pôvodné rozmery.
+ * Maska sa týka iba ilustrácie, nie klikateľných popiskov.
+ */
+#page-domov #hutStrip{
+  background:transparent;
+  border-color:transparent;
+  box-shadow:none;
+}
+
+#page-domov #hutCanvas{
+  -webkit-mask-image:linear-gradient(
+    to bottom,
+    transparent,
+    black 22px,
+    black calc(100% - 22px),
+    transparent
+  );
+
+  mask-image:linear-gradient(
+    to bottom,
+    transparent,
+    black 22px,
+    black calc(100% - 22px),
+    transparent
+  );
+}
+
+/*
+ * Chaty → banner → pätička.
+ * Horný okraj spája krémové pozadie so zelenou.
+ * Spodný okraj už dosiahne farbu pätičky.
+ */
+#page-domov > #banner{
+  --flow-fill:linear-gradient(
+    to bottom,
+    var(--bg) 0,
+    var(--brand) var(--flow-edge),
+    var(--brand) calc(100% - var(--flow-edge)),
+    var(--forest) 100%
+  );
+}
+
+/* Mierne šikmý rez zostáva v priestore nad obsahom bannera. */
+#page-domov > #banner::before{
+  content:"";
+  position:absolute;
+  inset:0 0 auto;
+  height:var(--flow-edge);
+  background:var(--bg);
+
+  clip-path:polygon(
+    0 0,
+    100% 0,
+    100% 12%,
+    68% 42%,
+    0 100%
+  );
+
+  pointer-events:none;
+}
+
+/*
+ * Ilustrácia bannera sa tiež postupne objaví a stratí.
+ * Prvá maska zachová pôvodné horizontálne zoslabnutie
+ * ilustrácie za textom.
+ */
+#page-domov > #banner > svg{
+  -webkit-mask-image:
+    linear-gradient(90deg,transparent,black),
+    linear-gradient(
+      to bottom,
+      transparent,
+      black var(--flow-edge),
+      black calc(100% - var(--flow-edge)),
+      transparent
+    );
+
+  mask-image:
+    linear-gradient(90deg,transparent,black),
+    linear-gradient(
+      to bottom,
+      transparent,
+      black var(--flow-edge),
+      black calc(100% - var(--flow-edge)),
+      transparent
+    );
+
+  -webkit-mask-composite:source-in;
+  mask-composite:intersect;
+}
+
+/*
+ * POČASIE
+ * Svetlý vstup → tmavá predpoveď → svetlá príprava.
+ */
+#page-pocasie > section:first-child{
+  --flow-fill:linear-gradient(
+    to bottom,
+    var(--bg) 0,
+    var(--forest) var(--flow-edge),
+    var(--forest) 100%
+  );
+}
+
+#page-pocasie > section:nth-child(2){
+  --flow-fill:linear-gradient(
+    to bottom,
+    var(--forest) 0,
+    var(--bg) var(--flow-edge),
+    var(--bg) 100%
+  );
+}
+
+/*
+ * PÄTIČKA
+ * Na svetlých stránkach sa prechod odohrá v existujúcej
+ * ploche lesnej siluety pred textom pätičky.
+ */
+body > footer{
+  --flow-fill:linear-gradient(
+    to bottom,
+    var(--bg) 0,
+    var(--forest) 105px,
+    var(--forest) 100%
+  );
+}
+
+/* Domov už prichádza z tmavého spodku bannera. */
+body:has(#page-domov.active) > footer{
+  --flow-fill:linear-gradient(
+    var(--forest),
+    var(--forest)
+  );
+}
 </style>
 
 </head>
